@@ -50,12 +50,12 @@ namespace gr {
          gr_vector_const_void_star &input_items,
          gr_vector_void_star &output_items);
 
-      static void find_one_local_peak_indx(uvec &pk_indx, const fvec in_vec, const int d_num_max_vals)
+      static void find_one_local_peak_indx(uvec &pk_indx, const fvec &in_vec, const int d_num_max_vals)
       {
         pk_indx = index_max(in_vec);
       }
-      static void find_more_than_one_local_peak_indxs(uvec &pk_indxs, const fvec in_vec, const int d_num_max_vals);   
-      void (*find_local_peak_indxs)(uvec &pk_indxs, const fvec in_vec, const int d_num_max_vals);   
+      static void find_more_than_one_local_peak_indxs(uvec &pk_indxs, const fvec &in_vec, const int d_num_max_vals);   
+      void (*find_local_peak_indxs)(uvec &pk_indxs, const fvec &in_vec, const int d_num_max_vals);   
 
     };
 

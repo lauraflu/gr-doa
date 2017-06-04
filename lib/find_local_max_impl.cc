@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /*
- * Copyright 2016 
+ * Copyright 2016
  * Srikanth Pagadarai <srikanth.pagadarai@gmail.com>
  * Travis F. Collins <travisfcollins@gmail.com>
  *
@@ -78,15 +78,19 @@ namespace gr {
     }
 
     void
-    find_local_max_impl::find_more_than_one_local_peak_indxs(uvec &pk_indxs, const fvec in_vec, const int d_num_max_vals)
+    find_local_max_impl::find_more_than_one_local_peak_indxs(uvec &pk_indxs, const fvec& in_vec, const int d_num_max_vals)
     {
       float peak_ht = -datum::inf;
+      float peak_inf = datum::inf;
       uvec indx1 = find(in_vec > peak_ht);
+      uvec indx_inf = find(in_vec < peak_inf);
+
       // sign of first-order difference
       fvec sign_fod_in_vec = sign(diff(in_vec));
 
       // find flats
       uvec indx_flat = find(sign_fod_in_vec == 0);
+
       for (int ii=indx_flat.size()-1; ii >=0 ; ii--)
       {
 	// back-propagate sign_fod_in_vec for flats
@@ -105,21 +109,27 @@ namespace gr {
       // finding all peak locations by computing
       // second-order difference of
       // sign of first-order difference
-      uvec indx2 = find(diff(sign_fod_in_vec) == -2)+1;
+      // uvec all_pk_indxs = find(diff(sign_fod_in_vec) == -2)+1;
 
-      uvec indx3;
-      uvec indx3_unique;
-      uvec hist_indx3;
-      uvec all_pk_indxs;
-      if (!indx2.is_empty())
-      {
-        // finding set-intersection between indx1 and indx2
-        // in order to identify local peaks
-	indx3 = join_vert(indx1, indx2);
-        indx3_unique = unique(indx3);
-        hist_indx3 = hist(indx3, indx3_unique);
-        all_pk_indxs = indx1(find(hist_indx3 == 2));
-      }
+      uvec all_pk_indxs = find(diff(sign_fod_in_vec) == -2)+1;
+
+//      if (all_pk_indxs.size() != 0) // at least one of the peaks can be -inf
+//      {
+//        uvec indx2 = all_pk_indxs;
+//        uvec indx3;
+//        uvec indx3_unique;
+//        uvec hist_indx3;
+//        if (!indx2.is_empty())
+//        {
+//          // finding set-intersection between indx1 and indx2
+//          // in order to identify local peaks
+//          indx3 = join_vert(indx1, indx2);
+//          indx3_unique = unique(indx3);
+//          hist_indx3 = hist(indx3, indx3_unique);
+//
+//          all_pk_indxs = indx1(find(hist_indx3 == 2));
+//        }
+//      }
 
       // peak locations
       fvec all_pks = in_vec(all_pk_indxs);
