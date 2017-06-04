@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /*
- * Copyright 2016 
+ * Copyright 2016
  * Srikanth Pagadarai <srikanth.pagadarai@gmail.com>
  * Travis F. Collins <travisfcollins@gmail.com>
  *
@@ -59,7 +59,7 @@ namespace gr {
         {
             d_array_loc(nn) = d_norm_spacing*0.5*(d_num_ant_ele-1-2*nn);
         }
-	
+
         // form theta vector
         d_theta = new float[d_pspectrum_len];
 	d_theta[0] = 0.0;
@@ -69,6 +69,7 @@ namespace gr {
           theta = theta_prev+180.0/d_pspectrum_len;
 	  theta_prev = theta;
           d_theta[ii] = datum::pi*theta/180.0;
+//          std::cout << "theta[" << ii << "] = " << d_theta[ii] << std::endl;
         }
 
         // form array response matrix
@@ -85,6 +86,8 @@ namespace gr {
         // save transposed copy
         d_vii_matrix_trans = trans(d_vii_matrix);
 
+
+//        std::cout << "Called contructor" << std::endl;
     }
 
     /*
@@ -103,13 +106,15 @@ namespace gr {
     	v_ii = exp(i*(-1.0*2*datum::pi*cos(theta)*array_loc));
     }
 
+bool ok = true;
+
     int
     MUSIC_lin_array_impl::work(int noutput_items,
         gr_vector_const_void_star &input_items,
         gr_vector_void_star &output_items)
     {
       const gr_complex *in = (const gr_complex *) input_items[0];
-      float *out = (float *) output_items[0];      
+      float *out = (float *) output_items[0];
 
       // process each input vector (Rxx matrix)
       fvec eig_val;
@@ -127,17 +132,38 @@ namespace gr {
 
           // noise subspace and its square matrix
           U_N = eig_vec.cols(0, d_num_ant_ele-d_num_targets-1);
+
           U_N_sq = U_N*trans(U_N);
+
+//          std::cout << "size of U_N_sq" << U_N_sq.n_rows << " " <<
+//            U_N_sq.n_cols << std::endl;
+//          std::cout << "size of U_N" << U_N.n_rows << " " <<
+//            U_N.n_cols << std::endl;
+
+//          auto max_U_N_sq = max(U_N_sq);
+//          auto min_U_N_sq = min(U_N_sq);
+//
+//          auto max_ = max_U_N_sq.max();
+//          auto min_ = min_U_N_sq.min();
+//
+//          std::cout << "real(max) = " << real(max_) << ", imag(max) = " << imag(max_)
+//                      << ", real(min) = " << real(min_) << ", imag(min) = " << imag(min_)
+//                      << std::endl;
+
+//          for (int j = 0; j < d_num_ant_ele; j++) {
+//            std::cout << ""
+//
+//          }
+
 
           // determine pseudo-spectrum for each value of theta in [0.0, 180.0)
           gr_complex Q_temp;
           for (int ii = 0; ii < d_pspectrum_len; ii++)
           {
-            
             Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
 	    out_vec(ii) = 1.0/Q_temp.real();
           }
-      	  out_vec = 10.0*log10(out_vec/out_vec.max());  
+      	  out_vec = 10.0*log10(out_vec/out_vec.max());
 
 	}
 
