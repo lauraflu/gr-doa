@@ -82,17 +82,19 @@ namespace gr {
                                    writeFIFO,
                                    readFIFO);
       } catch (std::string err) {
-        std::cout << "Exception at creation of the ConnexMachine!" << std::endl;
         std::cout << err << std::endl;
       }
-
 
       factor_mult = 1 << 14;
       factor_res = 1 << 12;
 
       const int nr_loops = (n_cols * 2) / vector_array_size;
 
-      autocorrelationKernel(n_rows, n_cols, nr_loops);
+      try {
+        autocorrelationKernel(n_rows, n_cols, nr_loops);
+      } catch (std::string err) {
+        std::cout << err << std::endl;
+      }
 
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
