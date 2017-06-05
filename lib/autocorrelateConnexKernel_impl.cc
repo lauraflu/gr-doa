@@ -33,7 +33,6 @@ namespace gr {
 
     std::vector<uint16_t> row_nr;
     std::vector<uint16_t> col_nr;
-    std::vector<gr_complex> out_data(16);
 
     void executeAutocorrelationKernel(ConnexMachine *connex);
     void autocorrelationKernel(const int n_rows_, const int n_cols_, const int nr_loops);
@@ -112,9 +111,6 @@ namespace gr {
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
 
-      // Create container for temporary matrix
-      d_input_matrix = arma::cx_fmat(snapshot_size,inputs);
-
       // initialize the reflection matrix
       d_J.eye(d_num_inputs, d_num_inputs);
       d_J = fliplr(d_J);
@@ -152,7 +148,7 @@ namespace gr {
       // Create each output matrix
       for (int i = 0; i < output_matrices; i++)
       {
-//        gr_complex *out_data = &out[i * d_num_inputs * d_num_inputs];
+        gr_complex *out_data = &out[i * d_num_inputs * d_num_inputs];
         std::vector<const gr_complex *> in_data_ptr(d_num_inputs);
 
         // Keep pointers to input data
@@ -166,8 +162,6 @@ namespace gr {
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
-//            std::cout << "row: " << cnt_row << ", col: " << cnt_col << std::endl;
-
             // TODO maybe better with real assignation; this destroys and
             // creates new elements with this value
             row_nr.assign(vector_array_size, cnt_row);
@@ -188,41 +182,11 @@ namespace gr {
             out_data[cnt_col + cnt_row * n_rows] =
               gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
 
-            std::cout << "data_out[" << cnt_row << ", " << cnt_col << "] = " <<
-              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
-              out_data[curr_idx] << std::endl;
+//            std::cout << "data_out[" << cnt_row << ", " << cnt_col << "] = " <<
+//              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
+//              out_data[curr_idx] << std::endl;
           }
         }
-
-        // Form input matrix
-        for(int k=0; k<d_num_inputs; k++)
-        {
-            memcpy((void*)d_input_matrix.colptr(k),
-            ((gr_complex*)input_items[k] + i * d_nonoverlap_size),
-            sizeof(gr_complex) * d_snapshot_size);
-
-//            std::cout << "Check Input: " << std::endl;
-//            std::cout << "exp: " << d_input_matrix[0] << ", got: " <<
-//            in_data_cnx
-        }
-        // Make output pointer into matrix pointer
-        arma::cx_fmat out_matrix(
-          out + d_num_inputs * d_num_inputs * i,
-          d_num_inputs, d_num_inputs, COPY_MEM, FIX_SIZE);
-
-
-        // Do autocorrelation
-        out_matrix =
-          (1.0 / d_snapshot_size) * d_input_matrix.st() * conj(d_input_matrix);
-//        if (d_avg_method == 1)
-//            out_matrix = 0.5 * out_matrix +
-//              (0.5/d_snapshot_size) * d_J * conj(out_matrix) * d_J;
-
-        for (int k = 0; k < n_rows * n_rows; k++) {
-          std::cout << "Exp: " << out_matrix[k] << ", got: " << out_data[k] <<
-          std::endl;
-        }
-
       }
 
       // Tell runtime system how many input items we consumed on
