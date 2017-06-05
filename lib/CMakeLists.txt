@@ -31,7 +31,7 @@ list(APPEND doa_sources
     antenna_correction_impl.cc
     find_local_max_impl.cc
     calibrate_lin_array_impl.cc
-    )
+    autocorrelateConnexKernel_impl.cc )
 
 set(doa_sources "${doa_sources}" PARENT_SCOPE)
 if(NOT doa_sources)
@@ -40,7 +40,7 @@ if(NOT doa_sources)
 endif(NOT doa_sources)
 
 add_library(gnuradio-doa SHARED ${doa_sources})
-target_link_libraries(gnuradio-doa ${Boost_LIBRARIES} ${GNURADIO_ALL_LIBRARIES} ${ARMADILLO_LIBRARIES})
+target_link_libraries(gnuradio-doa ${Boost_LIBRARIES} ${GNURADIO_ALL_LIBRARIES} ${ARMADILLO_LIBRARIES} opincaa)
 set_target_properties(gnuradio-doa PROPERTIES DEFINE_SYMBOL "gnuradio_doa_EXPORTS")
 
 if(APPLE)

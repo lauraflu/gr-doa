@@ -39,7 +39,7 @@ namespace gr {
     {
       return gnuradio::get_initial_sptr
         (new autocorrelate_impl(inputs, snapshot_size, overlap_size, avg_method));
-    } 
+    }
 
     /*
      * The private constructor
@@ -92,12 +92,12 @@ namespace gr {
       for (int i=0; i<output_matrices; i++)
       {
         // Form input matrix
-        for(int k=0; k<d_num_inputs; k++) 
+        for(int k=0; k<d_num_inputs; k++)
         {
             memcpy((void*)d_input_matrix.colptr(k),
             ((gr_complex*)input_items[k]+i*d_nonoverlap_size),
             sizeof(gr_complex)*d_snapshot_size);
-		}
+        }
 
         // Make output pointer into matrix pointer
         arma::cx_fmat out_matrix(out+d_num_inputs*d_num_inputs*i,d_num_inputs,d_num_inputs,COPY_MEM,FIX_SIZE);
@@ -111,7 +111,7 @@ namespace gr {
 
       // Tell runtime system how many input items we consumed on
       // each input stream.
-      consume_each (d_nonoverlap_size*output_matrices);			
+      consume_each (d_nonoverlap_size*output_matrices);
 
       // Tell runtime system how many output items we produced.
       return (output_matrices);

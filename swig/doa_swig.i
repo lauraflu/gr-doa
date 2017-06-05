@@ -14,6 +14,7 @@
 #include "doa/antenna_correction.h"
 #include "doa/find_local_max.h"
 #include "doa/calibrate_lin_array.h"
+#include "doa/autocorrelateConnexKernel.h"
 %}
 
 
@@ -36,3 +37,5 @@ GR_SWIG_BLOCK_MAGIC2(doa, calibrate_lin_array);
 
 
 
+%include "doa/autocorrelateConnexKernel.h"
+GR_SWIG_BLOCK_MAGIC2(doa, autocorrelateConnexKernel);
