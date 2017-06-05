@@ -34,8 +34,10 @@ namespace gr {
     std::vector<uint16_t> row_nr;
     std::vector<uint16_t> col_nr;
 
-    void executeAutocorrelationKernel(ConnexMachine *connex);
-    void autocorrelationKernel(const int n_rows_, const int n_cols_, const int nr_loops);
+    int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
+    void autocorrelationKernel(const int nr_loops);
+    void averagingKernel(int nr_elems_c, int n_inner_loops, int n_outer_loops);
+    void multiplyKernel(void);
 
     autocorrelateConnexKernel::sptr
     autocorrelateConnexKernel::make(
@@ -87,14 +89,6 @@ namespace gr {
       factor_mult = 1 << 14;
       factor_res = 1 << 12;
 
-      const int nr_loops = (n_cols * 2) / vector_array_size;
-
-      try {
-        autocorrelationKernel(n_rows, n_cols, nr_loops);
-      } catch (std::string err) {
-        std::cout << err << std::endl;
-      }
-
       n_elems = n_rows * n_cols;
       n_elems_c = 2 * n_elems;
       n_elems_out = n_rows * n_rows;
@@ -103,17 +97,49 @@ namespace gr {
       // How many reductions will be performed on Connex
       n_red_per_elem = ((n_cols * 2) / vector_array_size) * 2;
 
-      in_data_cnx =
-        static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
-      out_data_cnx =
-        static_cast<int32_t *>(malloc(n_red_per_elem * sizeof(int32_t)));
+      const int nr_loops = (n_cols * 2) / vector_array_size;
+      int n_rows_c = n_rows * 2;
+      // In order to work, vector_array_size should be a multiple of n_rows_c
+      int av_inner_loops = static_cast<int>(ceil(vector_array_size / n_rows_c));
+      // TODO not guaranteed to work if (n_elems_out_c * n_rows) is not a
+      // multiple of vector_array_size
+      int av_outer_loops = static_cast<int>(ceil(n_elems_out_c * n_rows / vector_array_size));
+
+      try {
+        autocorrelationKernel(nr_loops);
+        averagingKernel(n_rows_c, av_inner_loops, av_outer_loops);
+      } catch (std::string err) {
+        std::cout << err << std::endl;
+      }
+
+      in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
+      corr_matrix_cnx = static_cast<uint16_t *>(malloc(n_elems_out_c * sizeof(uint16_t)));
+      out_data_cnx = static_cast<int32_t *>(malloc(n_red_per_elem * sizeof(int32_t)));
 
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
 
-      // initialize the reflection matrix
-      d_J.eye(d_num_inputs, d_num_inputs);
-      d_J = fliplr(d_J);
+      if (d_avg_method) {
+        J = static_cast<uint16_t *>(malloc(n_elems_out_c * n_rows * sizeof(uint16_t)));
+        // initialize the reflection matrix
+        d_J.eye(d_num_inputs, d_num_inputs);
+        d_J = fliplr(d_J);
+
+        // Prepare the reflection matrix for storage on ConnexArray
+        int cnt_cnx = 0;
+        for (int i = 0; i < n_rows; i++) {
+          // Storing each line for n_rows times for easier computation in Connex
+          for (int k = 0; k < n_rows; k++) {
+            for (int j = 0; j < n_rows; j++) {
+              J[cnt_cnx++] = static_cast<uint16_t>(real(d_J(i, j)));
+              J[cnt_cnx++] = static_cast<uint16_t>(imag(d_J(i, j)));
+            }
+          }
+        }
+        // TODO: Chose 1000 as an approximation to not interfere with other data
+        // but should probably choose it another way
+        connex->writeDataToArray(J, n_elems_out_c * n_rows, 1000);
+      }
     }
 
     /*
@@ -124,6 +150,9 @@ namespace gr {
       delete connex;
       free(in_data_cnx);
       free(out_data_cnx);
+      free(corr_matrix_cnx);
+      if (d_avg_method)
+        free(J);
     }
 
     void
@@ -154,7 +183,7 @@ namespace gr {
         // Keep pointers to input data
         for (int k = 0; k < d_num_inputs; k++) {
           in_data_ptr[k] = ((gr_complex *)input_items[k] + i * d_nonoverlap_size);
-          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
+          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols, 0);
         }
 
         connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
@@ -170,7 +199,10 @@ namespace gr {
             connex->writeDataToArray(row_nr.data(), 1, 1022);
             connex->writeDataToArray(col_nr.data(), 1, 1023);
 
-            executeAutocorrelationKernel(connex);
+            int result = executeLocalKernel(connex, autocorrelation_kernel);
+            if (result) {
+              return (output_matrices);
+            }
 
             connex->readMultiReduction(n_red_per_elem, out_data_cnx);
 
@@ -187,7 +219,26 @@ namespace gr {
 //              out_data[curr_idx] << std::endl;
           }
         }
-      }
+
+        // Averaging results
+        if (d_avg_method) {
+          int nr_loops =
+            static_cast<int>(ceil(n_elems_out_c / vector_array_size));
+          prepareInData(corr_matrix_cnx, out_data, n_elems_out, 1);
+          connex->writeDataToArray(corr_matrix_cnx, nr_loops, 0);
+
+          int result = executeLocalKernel(connex, averaging_kernel);
+          if (result) {
+            return (output_matrices);
+          }
+
+          connex->readMultiReduction(n_elems_out_c, out_data_cnx);
+
+          // Convert back to uint16_t
+          // another execute
+          // add to result
+        }
+      } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
       // each input stream.
@@ -198,11 +249,21 @@ namespace gr {
     }
 
     void autocorrelateConnexKernel_impl::prepareInData(
-      uint16_t *out_data, const gr_complex *in_data, const int n_elems_in)
+      uint16_t *out_data, const gr_complex *in_data, const int n_elems_in,
+      const int conj)
     {
-      for (int i = 0; i < n_elems_in; i++) {
-        out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
-        out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * factor_mult);
+      if (!conj) {
+        // Store the elements as they are
+        for (int i = 0; i < n_elems_in; i++) {
+          out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
+          out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * factor_mult);
+        }
+      } else {
+        // Conjugate and store
+        for (int i = 0; i < n_elems_in; i++) {
+          out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
+          out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * -factor_mult);
+        }
       }
     }
 
@@ -253,15 +314,18 @@ namespace gr {
       return gr_complex(acc_real, acc_imag);
     }
 
-    void executeAutocorrelationKernel(ConnexMachine *connex)
+    int executeLocalKernel(ConnexMachine *connex, std::string kernel_name)
     {
-      connex->executeKernel("autocorrelation");
+      try {
+        connex->executeKernel(kernel_name.c_str());
+      } catch(std::string e) {
+        std::cout << e << std::endl;
+        return -1;
+      }
+      return 0;
     }
 
-    void autocorrelationKernel(
-      const int n_rows_,
-      const int n_cols_,
-      const int nr_loops)
+    void autocorrelationKernel(const int nr_loops)
     {
       BEGIN_KERNEL("autocorrelation");
         EXECUTE_IN_ALL(
@@ -290,7 +354,6 @@ namespace gr {
             CELL_SHL(R2, R29);
             NOP;
             R4 = SHIFT_REG;
-            LS[500] = R4;
             R4 = R4 * R1;
             R4 = MULT_HIGH();     // re1 * im2
             R4 = R28 - R4;        // The column is conjugated => negate these
@@ -320,6 +383,97 @@ namespace gr {
         END_REPEAT;
       END_KERNEL("autocorrelation");
     }
+
+    void averagingKernel(int nr_elems_c, int n_inner_loops, int n_outer_loops) {
+      BEGIN_KERNEL("averaging");
+        EXECUTE_IN_ALL(
+          R30 = 0;
+          R31 = 1;
+          R27 = 0;              // Keep index of LS to load in R1
+          R25 = 1000;           // Keep index of LS to load in R2 (J data)
+          R26 = INDEX;          // Keep index of cells to reduce in block
+          R28 = nr_elems_c;     // Size of a block to reduce
+          R29 = nr_elems_c;     // Keep track of blocks to reduce
+        )
+
+      for (int cnt_loop = 0; cnt_loop < n_outer_loops; cnt_loop++) {
+        EXECUTE_IN_ALL(
+            R1 = LS[R27];        // The input matrix, stored column-first
+            R2 = LS[R25];        // The reduction matrix (J), stored line-first
+
+            R3 = R1 * R2;
+            R3 = MULT_HIGH();     // re1 * re2, im1 * im2
+
+            CELL_SHL(R2, R29);
+            NOP;
+            R4 = SHIFT_REG;
+            R4 = R4 * R1;
+            R4 = MULT_HIGH();     // re1 * im2
+
+            CELL_SHR(R2, R29);
+            NOP;
+            R5 = SHIFT_REG;
+            R5 = R5 * R1;
+            R5 = MULT_HIGH();     // re2 * im1;
+
+            R6 = INDEX;           // Select only the odd PEs
+            R6 = R6 & R29;
+            R7 = (R6 == R29);
+        )
+
+        EXECUTE_WHERE_EQ(
+          R3 = R30 - R3;        // Invert these partial real parts
+          R4 = R5;              // All partial imaginary parts are now in R4
+        )
+
+        REPEAT_X_TIMES(n_inner_loops);
+          EXECUTE_IN_ALL(
+            R7 = (R26 < R29);   // Select only blocks of nr_elems_c at a time by
+                                // checking that the index is < k * nr_elemc_c
+          )
+
+          EXECUTE_WHERE_LT(
+            R26 = 129;          // A random number > 128 so these PEs won't be
+                                // selected again
+            REDUCE(R3);         // Real part
+            REDUCE(R4);         // Imaginary part
+          )
+
+          EXECUTE_IN_ALL(
+            R29 = R29 + R28;    // Go to the next block of 8 PEs
+          )
+        END_REPEAT;
+
+        EXECUTE_IN_ALL(
+          R26 = R26 + R31;
+          R27 = R27 + R31;
+        )
+      }
+
+      END_KERNEL("averaging");
+    }
+
+    void multiplyKernel(void)
+    {
+      BEGIN_KERNEL("mult");
+      R3 = R1 * R2;
+      R3 = MULT_HIGH();     // re1 * re2, im1 * im2
+
+      CELL_SHL(R2, R29);
+      NOP;
+      R4 = SHIFT_REG;
+      R4 = R4 * R1;
+      R4 = MULT_HIGH();     // re1 * im2
+      R4 = R28 - R4;        // The column is conjugated => negate these
+
+      CELL_SHR(R2, R29);
+      NOP;
+      R5 = SHIFT_REG;
+      R5 = R5 * R1;
+      R5 = MULT_HIGH();     // re2 * im1;
+      END_KERNEL("mult");
+    }
+
 
 
   } /* namespace doa */

@@ -46,6 +46,10 @@ namespace gr {
       ConnexMachine *connex;
       uint16_t *in_data_cnx;
       int32_t *out_data_cnx;
+      uint16_t *corr_matrix_cnx;
+      uint16_t *J;
+      std::string autocorrelation_kernel = "autocorrelationKernel";
+      std::string averaging_kernel = "averaging";
 
       /*
        * Factors required for scaling the data
@@ -86,7 +90,8 @@ namespace gr {
       void prepareInData(
         uint16_t *out_data,
         const gr_complex *in_data,
-        const int n_elems_in);
+        const int n_elems_in,
+        const int conj);
 
       /*
        * There must be space for at least n_elems_in / 2 at the address pointed
