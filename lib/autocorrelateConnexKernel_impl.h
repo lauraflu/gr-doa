@@ -44,6 +44,8 @@ namespace gr {
        *==================================================================*/
 
       ConnexMachine *connex;
+      uint16_t *in_data_cnx;
+      int32_t *out_data_cnx;
 
       /*
        * Factors required for scaling the data
@@ -61,6 +63,15 @@ namespace gr {
        */
       int n_rows;
       int n_cols;
+
+      // Variables that will be computed once, based on the input parameters
+      int n_elems;
+      int n_elems_c;
+      int n_elems_out;
+      int n_elems_out_c;
+      int n_ls_busy;
+      int n_red_per_elem;
+
 
       /*
        * ConnexArray specific constants

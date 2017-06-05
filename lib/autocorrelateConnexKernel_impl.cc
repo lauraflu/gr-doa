@@ -33,6 +33,7 @@ namespace gr {
 
     std::vector<uint16_t> row_nr;
     std::vector<uint16_t> col_nr;
+    std::vector<gr_complex> out_data(16);
 
     void executeAutocorrelationKernel(ConnexMachine *connex);
     void autocorrelationKernel(const int n_rows_, const int n_cols_, const int nr_loops);
@@ -67,15 +68,14 @@ namespace gr {
       std::string readFIFO)
       : gr::block("autocorrelateConnexKernel",
               gr::io_signature::make(inputs, inputs, sizeof(gr_complex)),
-              gr::io_signature::make(1, 1, sizeof(gr_complex)*inputs*inputs)),
-      d_num_inputs(inputs),
-      d_snapshot_size(snapshot_size),
-      d_overlap_size(overlap_size),
-      d_avg_method(avg_method)
+              gr::io_signature::make(1, 1, sizeof(gr_complex)*inputs*inputs))
+      , d_num_inputs(inputs)
+      , d_snapshot_size(snapshot_size)
+      , d_overlap_size(overlap_size)
+      , d_avg_method(avg_method)
+      , n_rows(d_num_inputs)
+      , n_cols(d_snapshot_size)
     {
-      n_rows = d_num_inputs;
-      n_cols = d_snapshot_size;
-
       try {
         connex = new ConnexMachine(distributionFIFO,
                                    reductionFIFO,
@@ -96,6 +96,19 @@ namespace gr {
         std::cout << err << std::endl;
       }
 
+      n_elems = n_rows * n_cols;
+      n_elems_c = 2 * n_elems;
+      n_elems_out = n_rows * n_rows;
+      n_elems_out_c = n_elems_out * 2;
+      n_ls_busy = n_elems_c / vector_array_size;
+      // How many reductions will be performed on Connex
+      n_red_per_elem = ((n_cols * 2) / vector_array_size) * 2;
+
+      in_data_cnx =
+        static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
+      out_data_cnx =
+        static_cast<int32_t *>(malloc(n_red_per_elem * sizeof(int32_t)));
+
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
 
@@ -113,6 +126,8 @@ namespace gr {
     autocorrelateConnexKernel_impl::~autocorrelateConnexKernel_impl()
     {
       delete connex;
+      free(in_data_cnx);
+      free(out_data_cnx);
     }
 
     void
@@ -135,23 +150,78 @@ namespace gr {
       gr_complex *out = (gr_complex *) output_items[0];
 
       // Create each output matrix
-      for (int i=0; i<output_matrices; i++)
+      for (int i = 0; i < output_matrices; i++)
       {
+//        gr_complex *out_data = &out[i * d_num_inputs * d_num_inputs];
+        std::vector<const gr_complex *> in_data_ptr(d_num_inputs);
+
+        // Keep pointers to input data
+        for (int k = 0; k < d_num_inputs; k++) {
+          in_data_ptr[k] = ((gr_complex *)input_items[k] + i * d_nonoverlap_size);
+          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
+        }
+
+        connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
+
+        for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+          // Only elements higher or equal than the main diagonal
+          for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+//            std::cout << "row: " << cnt_row << ", col: " << cnt_col << std::endl;
+
+            // TODO maybe better with real assignation; this destroys and
+            // creates new elements with this value
+            row_nr.assign(vector_array_size, cnt_row);
+            col_nr.assign(vector_array_size, cnt_col);
+
+            connex->writeDataToArray(row_nr.data(), 1, 1022);
+            connex->writeDataToArray(col_nr.data(), 1, 1023);
+
+            executeAutocorrelationKernel(connex);
+
+            connex->readMultiReduction(n_red_per_elem, out_data_cnx);
+
+            // process out data; consider out array stored column-first
+            int curr_idx = cnt_row + cnt_col * n_rows;
+            out_data[curr_idx] =
+              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
+            // Hermitian matrix => a_ij = conj(a_ji);
+            out_data[cnt_col + cnt_row * n_rows] =
+              gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
+
+            std::cout << "data_out[" << cnt_row << ", " << cnt_col << "] = " <<
+              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
+              out_data[curr_idx] << std::endl;
+          }
+        }
+
         // Form input matrix
         for(int k=0; k<d_num_inputs; k++)
         {
             memcpy((void*)d_input_matrix.colptr(k),
-            ((gr_complex*)input_items[k]+i*d_nonoverlap_size),
-            sizeof(gr_complex)*d_snapshot_size);
-        }
+            ((gr_complex*)input_items[k] + i * d_nonoverlap_size),
+            sizeof(gr_complex) * d_snapshot_size);
 
+//            std::cout << "Check Input: " << std::endl;
+//            std::cout << "exp: " << d_input_matrix[0] << ", got: " <<
+//            in_data_cnx
+        }
         // Make output pointer into matrix pointer
-        arma::cx_fmat out_matrix(out+d_num_inputs*d_num_inputs*i,d_num_inputs,d_num_inputs,COPY_MEM,FIX_SIZE);
+        arma::cx_fmat out_matrix(
+          out + d_num_inputs * d_num_inputs * i,
+          d_num_inputs, d_num_inputs, COPY_MEM, FIX_SIZE);
+
 
         // Do autocorrelation
-        out_matrix = (1.0/d_snapshot_size)*d_input_matrix.st()*conj(d_input_matrix);
-        if (d_avg_method == 1)
-            out_matrix = 0.5*out_matrix+(0.5/d_snapshot_size)*d_J*conj(out_matrix)*d_J;
+        out_matrix =
+          (1.0 / d_snapshot_size) * d_input_matrix.st() * conj(d_input_matrix);
+//        if (d_avg_method == 1)
+//            out_matrix = 0.5 * out_matrix +
+//              (0.5/d_snapshot_size) * d_J * conj(out_matrix) * d_J;
+
+        for (int k = 0; k < n_rows * n_rows; k++) {
+          std::cout << "Exp: " << out_matrix[k] << ", got: " << out_data[k] <<
+          std::endl;
+        }
 
       }
 
