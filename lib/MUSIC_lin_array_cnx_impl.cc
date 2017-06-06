@@ -1,8 +1,6 @@
 /* -*- c++ -*- */
 /*
- * Copyright 2016
- * Srikanth Pagadarai <srikanth.pagadarai@gmail.com>
- * Travis F. Collins <travisfcollins@gmail.com>
+ * Copyright 2017 <+YOU OR YOUR COMPANY+>.
  *
  * This is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,33 +23,49 @@
 #endif
 
 #include <gnuradio/io_signature.h>
-#include "MUSIC_lin_array_impl.h"
+#include "MUSIC_lin_array_cnx_impl.h"
 
 #define COPY_MEM false  // Do not copy matrices into separate memory
 #define FIX_SIZE true   // Keep dimensions of matrices constant
 
-
 namespace gr {
   namespace doa {
 
-    MUSIC_lin_array::sptr
-    MUSIC_lin_array::make(float norm_spacing, int num_targets, int num_ant_ele, int pspectrum_len)
+    MUSIC_lin_array_cnx::sptr
+    MUSIC_lin_array_cnx::make(
+      float norm_spacing,
+      int num_targets,
+      int num_ant_ele,
+      int pspectrum_len,
+      std::string distributionFIFO,
+      std::string reductionFIFO,
+      std::string writeFIFO,
+      std::string readFIFO)
     {
       return gnuradio::get_initial_sptr
-        (new MUSIC_lin_array_impl(norm_spacing, num_targets, num_ant_ele, pspectrum_len));
+        (new MUSIC_lin_array_cnx_impl(norm_spacing, num_targets, num_ant_ele,
+          pspectrum_len, distributionFIFO, reductionFIFO, writeFIFO, readFIFO));
     }
 
     /*
      * The private constructor
      */
-    MUSIC_lin_array_impl::MUSIC_lin_array_impl(float norm_spacing, int num_targets, int num_ant_ele, int pspectrum_len)
-      : gr::sync_block("MUSIC_lin_array",
-              gr::io_signature::make(1, 1, sizeof(gr_complex)*num_ant_ele*num_ant_ele),
-              gr::io_signature::make(1, 1, sizeof(float)*pspectrum_len)),
-        d_norm_spacing(norm_spacing),
-        d_num_targets(num_targets),
-        d_num_ant_ele(num_ant_ele),
-        d_pspectrum_len(pspectrum_len)
+    MUSIC_lin_array_cnx_impl::MUSIC_lin_array_cnx_impl(
+      float norm_spacing,
+      int num_targets,
+      int num_ant_ele,
+      int pspectrum_len,
+      std::string distributionFIFO,
+      std::string reductionFIFO,
+      std::string writeFIFO,
+      std::string readFIFO)
+      : gr::sync_block("MUSIC_lin_array_cnx",
+              gr::io_signature::make(1, 1, sizeof(gr_complex) * num_ant_ele * num_ant_ele),
+              gr::io_signature::make(1, 1, sizeof(float) * pspectrum_len)),
+              d_norm_spacing(norm_spacing),
+              d_num_targets(num_targets),
+              d_num_ant_ele(num_ant_ele),
+              d_pspectrum_len(pspectrum_len)
     {
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
@@ -89,27 +103,26 @@ namespace gr {
     /*
      * Our virtual destructor.
      */
-    MUSIC_lin_array_impl::~MUSIC_lin_array_impl()
+    MUSIC_lin_array_cnx_impl::~MUSIC_lin_array_cnx_impl()
     {
     }
 
     // array manifold vector generating function
-    void MUSIC_lin_array_impl::amv(cx_fcolvec& v_ii, fcolvec& array_loc, float theta)
+    void MUSIC_lin_array_cnx_impl::amv(cx_fcolvec& v_ii, fcolvec& array_loc, float theta)
     {
         // sqrt(-1)
         const gr_complex i = gr_complex(0.0, 1.0);
         // array manifold vector
-        v_ii = exp(i*(-1.0*2*datum::pi*cos(theta)*array_loc));
+        v_ii = exp(i * (-1.0 * 2 * datum::pi * cos(theta) * array_loc));
     }
 
-bool ok = true;
 
     int
-    MUSIC_lin_array_impl::work(int noutput_items,
+    MUSIC_lin_array_cnx_impl::work(int noutput_items,
         gr_vector_const_void_star &input_items,
         gr_vector_void_star &output_items)
     {
-      const gr_complex *in = (const gr_complex *) input_items[0];
+      const gr_complex *in = (const gr_complex *)input_items[0];
       float *out = (float *) output_items[0];
 
       // process each input vector (Rxx matrix)
@@ -139,12 +152,13 @@ bool ok = true;
             out_vec(ii) = 1.0/Q_temp.real();
           }
           out_vec = 10.0*log10(out_vec/out_vec.max());
-
       }
 
       // Tell runtime system how many output items we produced.
       return noutput_items;
+
     }
 
   } /* namespace doa */
 } /* namespace gr */
+

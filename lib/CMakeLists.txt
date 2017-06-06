@@ -31,7 +31,8 @@ list(APPEND doa_sources
     antenna_correction_impl.cc
     find_local_max_impl.cc
     calibrate_lin_array_impl.cc
-    autocorrelateConnexKernel_impl.cc )
+    autocorrelateConnexKernel_impl.cc
+    MUSIC_lin_array_cnx_impl.cc )
 
 set(doa_sources "${doa_sources}" PARENT_SCOPE)
 if(NOT doa_sources)

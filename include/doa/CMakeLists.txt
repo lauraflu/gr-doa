@@ -28,5 +28,6 @@ install(FILES
     antenna_correction.h
     find_local_max.h
     calibrate_lin_array.h
-    autocorrelateConnexKernel.h DESTINATION include/doa
+    autocorrelateConnexKernel.h
+    MUSIC_lin_array_cnx.h DESTINATION include/doa
 )

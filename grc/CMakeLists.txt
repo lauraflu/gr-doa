@@ -30,5 +30,6 @@ install(FILES
     doa_findmax_and_save.xml
     doa_find_local_max.xml
     doa_calibrate_lin_array.xml
-    doa_autocorrelateConnexKernel.xml DESTINATION share/gnuradio/grc/blocks
+    doa_autocorrelateConnexKernel.xml
+    doa_MUSIC_lin_array_cnx.xml DESTINATION share/gnuradio/grc/blocks
 )

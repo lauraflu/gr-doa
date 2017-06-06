@@ -15,6 +15,7 @@
 #include "doa/find_local_max.h"
 #include "doa/calibrate_lin_array.h"
 #include "doa/autocorrelateConnexKernel.h"
+#include "doa/MUSIC_lin_array_cnx.h"
 %}
 
 
@@ -39,3 +40,6 @@ GR_SWIG_BLOCK_MAGIC2(doa, calibrate_lin_array);
 
 %include "doa/autocorrelateConnexKernel.h"
 GR_SWIG_BLOCK_MAGIC2(doa, autocorrelateConnexKernel);
+
+%include "doa/MUSIC_lin_array_cnx.h"
+GR_SWIG_BLOCK_MAGIC2(doa, MUSIC_lin_array_cnx);
