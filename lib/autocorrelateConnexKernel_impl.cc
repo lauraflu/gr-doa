@@ -109,12 +109,6 @@ namespace gr {
 
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
-
-      if (d_avg_method) {
-        // initialize the reflection matrix
-        d_J.eye(d_num_inputs, d_num_inputs);
-        d_J = fliplr(d_J);
-      }
     }
 
     /*
@@ -159,7 +153,6 @@ namespace gr {
         }
 
         connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
-//        std::cout << "Before: " << std::endl;
 
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
@@ -191,7 +184,6 @@ namespace gr {
 //              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
 //              out_data[curr_idx] << " ";
           }
-//          std::cout << std::endl;
         }
 
         // Averaging results
@@ -201,7 +193,6 @@ namespace gr {
           std::vector<std::vector<gr_complex>> refl_matrix;
           refl_matrix.resize(n_rows);
 
-//          std::cout << "Reflection matrix: " << std::endl;
           for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
             refl_matrix[cnt_row].resize(n_rows);
 
@@ -215,21 +206,16 @@ namespace gr {
 
               // form reflection matrix
               refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
-//              std::cout << refl_matrix[cnt_row][cnt_col] << " ";
             }
-//            std::cout << std::endl;
           }
 
           for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
             for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
               int idx = cnt_row + cnt_col * n_rows;
-//              std::cout << "Before add: " << out_data[idx] << std::endl;
               out_data[idx] += refl_matrix[cnt_row][cnt_col];
-//              std::cout << "After  add: " << out_data[idx] << std::endl;
             }
           }
         } // end loop averaging
-
       } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
@@ -270,7 +256,7 @@ namespace gr {
         temp_imag = (static_cast<float>(in_data[i + 1])) / factor_mult;
 
         gr_complex out_data(temp_real, temp_imag);
-//        std::cout << "out_data[" << i / 2 << "] = " << out_data << std::endl;
+        std::cout << "out_data[" << i / 2 << "] = " << out_data << std::endl;
       }
     }
 
@@ -285,8 +271,6 @@ namespace gr {
 
         acc_real += temp_real;
         acc_imag += temp_imag;
-
-//        std::cout << gr_complex(temp_real, temp_imag) << std::endl;
       }
 
       // Divide by the snapshot size = n_cols
@@ -386,9 +370,6 @@ namespace gr {
       R5 = MULT_HIGH();     // re2 * im1;
       END_KERNEL("mult");
     }
-
-
-
   } /* namespace doa */
 } /* namespace gr */
 
