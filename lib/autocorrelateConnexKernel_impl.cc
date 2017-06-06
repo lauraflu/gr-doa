@@ -36,7 +36,6 @@ namespace gr {
 
     int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
     void autocorrelationKernel(const int nr_loops);
-    void averagingKernel(int nr_elems_c, int n_inner_loops, int n_outer_loops);
     void multiplyKernel(void);
 
     autocorrelateConnexKernel::sptr
@@ -98,47 +97,23 @@ namespace gr {
       n_red_per_elem = ((n_cols * 2) / vector_array_size) * 2;
 
       const int nr_loops = (n_cols * 2) / vector_array_size;
-      int n_rows_c = n_rows * 2;
-      // In order to work, vector_array_size should be a multiple of n_rows_c
-      int av_inner_loops = static_cast<int>(ceil(vector_array_size / n_rows_c));
-      // TODO not guaranteed to work if (n_elems_out_c * n_rows) is not a
-      // multiple of vector_array_size
-      int av_outer_loops = static_cast<int>(ceil(n_elems_out_c * n_rows / vector_array_size));
 
       try {
         autocorrelationKernel(nr_loops);
-        averagingKernel(n_rows_c, av_inner_loops, av_outer_loops);
       } catch (std::string err) {
         std::cout << err << std::endl;
       }
 
       in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
-      corr_matrix_cnx = static_cast<uint16_t *>(malloc(n_elems_out_c * sizeof(uint16_t)));
       out_data_cnx = static_cast<int32_t *>(malloc(n_red_per_elem * sizeof(int32_t)));
 
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
 
       if (d_avg_method) {
-        J = static_cast<uint16_t *>(malloc(n_elems_out_c * n_rows * sizeof(uint16_t)));
         // initialize the reflection matrix
         d_J.eye(d_num_inputs, d_num_inputs);
         d_J = fliplr(d_J);
-
-        // Prepare the reflection matrix for storage on ConnexArray
-        int cnt_cnx = 0;
-        for (int i = 0; i < n_rows; i++) {
-          // Storing each line for n_rows times for easier computation in Connex
-          for (int k = 0; k < n_rows; k++) {
-            for (int j = 0; j < n_rows; j++) {
-              J[cnt_cnx++] = static_cast<uint16_t>(real(d_J(i, j)));
-              J[cnt_cnx++] = static_cast<uint16_t>(imag(d_J(i, j)));
-            }
-          }
-        }
-        // TODO: Chose 1000 as an approximation to not interfere with other data
-        // but should probably choose it another way
-        connex->writeDataToArray(J, n_elems_out_c * n_rows, 1000);
       }
     }
 
@@ -150,9 +125,6 @@ namespace gr {
       delete connex;
       free(in_data_cnx);
       free(out_data_cnx);
-      free(corr_matrix_cnx);
-      if (d_avg_method)
-        free(J);
     }
 
     void
@@ -183,10 +155,11 @@ namespace gr {
         // Keep pointers to input data
         for (int k = 0; k < d_num_inputs; k++) {
           in_data_ptr[k] = ((gr_complex *)input_items[k] + i * d_nonoverlap_size);
-          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols, 0);
+          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
         }
 
         connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
+//        std::cout << "Before: " << std::endl;
 
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
@@ -216,39 +189,47 @@ namespace gr {
 
 //            std::cout << "data_out[" << cnt_row << ", " << cnt_col << "] = " <<
 //              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
-//              out_data[curr_idx] << std::endl;
+//              out_data[curr_idx] << " ";
           }
+//          std::cout << std::endl;
         }
 
         // Averaging results
         // TODO: check if it's faster to use arma here
         if (d_avg_method) {
-          std::complex<float> two_c(2.0, 2.0);
-          std::vector<std::vector<gr_complex>> refl_matrix(n_rows);
+          std::complex<float> two_c = (2.0, 2.0);
+          std::vector<std::vector<gr_complex>> refl_matrix;
+          refl_matrix.resize(n_rows);
 
+//          std::cout << "Reflection matrix: " << std::endl;
           for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            refl_matrix[cnt_row].reserve(n_rows);
+            refl_matrix[cnt_row].resize(n_rows);
 
-            for (int cnt_col = 0; cnt_col < n_cols; cnt_col++) {
+            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
               int idx_row = n_rows - 1 - cnt_row;
-              int idx_col = n_cols - 1 - cnt_col;
-              int idx = idx_row + idx_col * n_cols;
+              int idx_col = n_rows - 1 - cnt_col;
+              int idx = idx_row + idx_col * n_rows;
+
               // Divide the initial results by 2
               out_data[idx] = out_data[idx] / two_c;
 
               // form reflection matrix
               refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
+//              std::cout << refl_matrix[cnt_row][cnt_col] << " ";
             }
+//            std::cout << std::endl;
           }
 
           for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            for (int cnt_col = 0; cnt_col < n_cols; cnt_col++) {
+            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
               int idx = cnt_row + cnt_col * n_rows;
+//              std::cout << "Before add: " << out_data[idx] << std::endl;
               out_data[idx] += refl_matrix[cnt_row][cnt_col];
+//              std::cout << "After  add: " << out_data[idx] << std::endl;
             }
           }
-
         } // end loop averaging
+
       } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
@@ -260,21 +241,11 @@ namespace gr {
     }
 
     void autocorrelateConnexKernel_impl::prepareInData(
-      uint16_t *out_data, const gr_complex *in_data, const int n_elems_in,
-      const int conj)
+      uint16_t *out_data, const gr_complex *in_data, const int n_elems_in)
     {
-      if (!conj) {
-        // Store the elements as they are
-        for (int i = 0; i < n_elems_in; i++) {
-          out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
-          out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * factor_mult);
-        }
-      } else {
-        // Conjugate and store
-        for (int i = 0; i < n_elems_in; i++) {
-          out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
-          out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * -factor_mult);
-        }
+      for (int i = 0; i < n_elems_in; i++) {
+        out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
+        out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * factor_mult);
       }
     }
 
@@ -338,7 +309,7 @@ namespace gr {
 
     void autocorrelationKernel(const int nr_loops)
     {
-      BEGIN_KERNEL("autocorrelation");
+      BEGIN_KERNEL("autocorrelationKernel");
         EXECUTE_IN_ALL(
           // Some constants
           R0 = nr_loops;
@@ -392,76 +363,7 @@ namespace gr {
             R31 = R31 + R29;
           )
         END_REPEAT;
-      END_KERNEL("autocorrelation");
-    }
-
-    void averagingKernel(int nr_elems_c, int n_inner_loops, int n_outer_loops) {
-      BEGIN_KERNEL("averaging");
-        EXECUTE_IN_ALL(
-          R30 = 0;
-          R31 = 1;
-          R27 = 0;              // Keep index of LS to load in R1
-          R25 = 1000;           // Keep index of LS to load in R2 (J data)
-          R26 = INDEX;          // Keep index of cells to reduce in block
-          R28 = nr_elems_c;     // Size of a block to reduce
-          R29 = nr_elems_c;     // Keep track of blocks to reduce
-        )
-
-      for (int cnt_loop = 0; cnt_loop < n_outer_loops; cnt_loop++) {
-        EXECUTE_IN_ALL(
-            R1 = LS[R27];        // The input matrix, stored column-first
-            R2 = LS[R25];        // The reduction matrix (J), stored line-first
-
-            R3 = R1 * R2;
-            R3 = MULT_HIGH();     // re1 * re2, im1 * im2
-
-            CELL_SHL(R2, R29);
-            NOP;
-            R4 = SHIFT_REG;
-            R4 = R4 * R1;
-            R4 = MULT_HIGH();     // re1 * im2
-
-            CELL_SHR(R2, R29);
-            NOP;
-            R5 = SHIFT_REG;
-            R5 = R5 * R1;
-            R5 = MULT_HIGH();     // re2 * im1;
-
-            R6 = INDEX;           // Select only the odd PEs
-            R6 = R6 & R29;
-            R7 = (R6 == R29);
-        )
-
-        EXECUTE_WHERE_EQ(
-          R3 = R30 - R3;        // Invert these partial real parts
-          R4 = R5;              // All partial imaginary parts are now in R4
-        )
-
-        REPEAT_X_TIMES(n_inner_loops);
-          EXECUTE_IN_ALL(
-            R7 = (R26 < R29);   // Select only blocks of nr_elems_c at a time by
-                                // checking that the index is < k * nr_elemc_c
-          )
-
-          EXECUTE_WHERE_LT(
-            R26 = 129;          // A random number > 128 so these PEs won't be
-                                // selected again
-            REDUCE(R3);         // Real part
-            REDUCE(R4);         // Imaginary part
-          )
-
-          EXECUTE_IN_ALL(
-            R29 = R29 + R28;    // Go to the next block of 8 PEs
-          )
-        END_REPEAT;
-
-        EXECUTE_IN_ALL(
-          R26 = R26 + R31;
-          R27 = R27 + R31;
-        )
-      }
-
-      END_KERNEL("averaging");
+      END_KERNEL("autocorrelationKernel");
     }
 
     void multiplyKernel(void)
