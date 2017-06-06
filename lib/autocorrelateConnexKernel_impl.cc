@@ -221,23 +221,34 @@ namespace gr {
         }
 
         // Averaging results
+        // TODO: check if it's faster to use arma here
         if (d_avg_method) {
-          int nr_loops =
-            static_cast<int>(ceil(n_elems_out_c / vector_array_size));
-          prepareInData(corr_matrix_cnx, out_data, n_elems_out, 1);
-          connex->writeDataToArray(corr_matrix_cnx, nr_loops, 0);
+          std::complex<float> two_c(2.0, 2.0);
+          std::vector<std::vector<gr_complex>> refl_matrix(n_rows);
 
-          int result = executeLocalKernel(connex, averaging_kernel);
-          if (result) {
-            return (output_matrices);
+          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+            refl_matrix[cnt_row].reserve(n_rows);
+
+            for (int cnt_col = 0; cnt_col < n_cols; cnt_col++) {
+              int idx_row = n_rows - 1 - cnt_row;
+              int idx_col = n_cols - 1 - cnt_col;
+              int idx = idx_row + idx_col * n_cols;
+              // Divide the initial results by 2
+              out_data[idx] = out_data[idx] / two_c;
+
+              // form reflection matrix
+              refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
+            }
           }
 
-          connex->readMultiReduction(n_elems_out_c, out_data_cnx);
+          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+            for (int cnt_col = 0; cnt_col < n_cols; cnt_col++) {
+              int idx = cnt_row + cnt_col * n_rows;
+              out_data[idx] += refl_matrix[cnt_row][cnt_col];
+            }
+          }
 
-          // Convert back to uint16_t
-          // another execute
-          // add to result
-        }
+        } // end loop averaging
       } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
