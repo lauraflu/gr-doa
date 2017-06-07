@@ -85,8 +85,8 @@ namespace gr {
         std::cout << err << std::endl;
       }
 
-      factor_mult = 1 << 14;
-      factor_res = 1 << 12;
+      factor_mult = 1 << 13;
+      factor_res = 1 << 10;
 
       n_elems = n_rows * n_cols;
       n_elems_c = 2 * n_elems;
