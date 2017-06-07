@@ -98,7 +98,11 @@ namespace gr {
         const int size_of_block = arr_size_c;
 
         // Create the kernel
-        multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
+        try {
+          multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
+        } catch (std::string e) {
+          std::cout << e << std::endl;
+        }
 
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
@@ -115,7 +119,7 @@ namespace gr {
         }
 
         // Form matrix that will store the temporary results in a chunk
-        temp_chunk_results = cx_fmat(arr_size, arr_in_chunk, fill::zeros);
+        temp_chunk_results = cx_fmat(arr_in_chunk, arr_size, fill::zeros);
 
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
@@ -219,7 +223,7 @@ namespace gr {
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
+        prepareInArrConnex(in_arr_curr, d_vii_matrix, arr_in_chunk, idx_curr_chunk);
         prepareInMatConnex(in_mat_cnx, U_N_sq);
 
         connex->writeDataToArray(in_mat_cnx, process_at_once, 511);
@@ -230,14 +234,17 @@ namespace gr {
           // TODO make variables for LS number in which to load
           connex->writeDataToArray(in_arr_curr, process_at_once, 0);
 
-          executeMultiplyArrMat(connex);
+          int res = executeMultiplyArrMat(connex);
+          if (res) {
+            return noutput_items;
+          }
 
           // Prepare future data for all but the last chunk
           if (cnt_chunk != nr_chunks - 1) {
             in_arr_next = in_arr_curr + process_at_once * vector_array_size;
             idx_next_chunk = idx_curr_chunk + arr_in_chunk;
 
-            prepareInArrConnex(in_arr_next, d_vii_matrix_trans, arr_in_chunk,
+            prepareInArrConnex(in_arr_next, d_vii_matrix, arr_in_chunk,
               idx_next_chunk);
           }
 
@@ -268,13 +275,13 @@ namespace gr {
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
 
-//        gr_complex Q_temp;
-//        for (int ii = 0; ii < d_pspectrum_len; ii++)
-//        {
-//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-//          out_vec(ii) = 1.0/Q_temp.real();
-//        }
-//        out_vec = 10.0*log10(out_vec/out_vec.max());
+        gr_complex Q_temp;
+        for (int ii = 0; ii < d_pspectrum_len; ii++)
+        {
+          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+          out_vec(ii) = 1.0/Q_temp.real();
+        }
+        out_vec = 10.0*log10(out_vec/out_vec.max());
       }
 
       // Tell runtime system how many output items we produced.
@@ -319,8 +326,8 @@ namespace gr {
 
       for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
         // Store column-first
-        for (int j = 0; j < mat_size; j++) {
-          for (int i = 0; i < mat_size; i++) {
+        for (int j = 0; j < arr_size; j++) {
+          for (int i = 0; i < arr_size; i++) {
             out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
             out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
           }
@@ -336,8 +343,8 @@ namespace gr {
 
       // Resultig array of a multiplication is stored column-wise for faster
       // access, since Armadillo matrices are stored column-wise
-      for (int j = 0; j < arr_in_chunk; j++) {
-        for (int i = 0; i < arr_size; i++) {
+      for (int i = 0; i < arr_in_chunk; i++) {
+        for (int j = 0; j < arr_size; j++) {
           temp0 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
 
@@ -356,7 +363,7 @@ namespace gr {
       int j, k;
 
       for (j = 0, k = arr_to_start; j < arr_in_chunk; j++, k++) {
-        temp_out = as_scalar(temp_res.col(j) * in_arr.col(k));
+        temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
         out_vec(idx_out++) = 1.0/temp_out.real();
       }
     }
