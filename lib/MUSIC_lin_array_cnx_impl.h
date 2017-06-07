@@ -75,9 +75,6 @@ namespace gr {
       int nr_elem_chunk;
       int nr_elem_calc;
 
-      // Elements to prepare for the ConnexArray in a chunk
-      int elems_to_prepare;
-
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
       int32_t *res_mult;

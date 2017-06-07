@@ -78,7 +78,6 @@ namespace gr {
         nr_chunks = nr_arrays / arr_in_chunk;
         nr_elem_chunk = arr_in_chunk * arr_size;
         nr_elem_calc = process_at_once * vector_array_size / arr_size_c;
-        elems_to_prepare = process_at_once * vector_array_size / 2;
 
         // Create ConnexMachine instance
         try {
@@ -90,9 +89,9 @@ namespace gr {
           std::cout << err << std::endl;
         }
 
-        factor_mult1 = 1 << 14;
-        factor_mult2 = 1 << 16;
-        factor_res = 1 << 14;
+        factor_mult1 = 1 << 13;
+        factor_mult2 = 1 << 15;
+        factor_res = 1 << 12;
 
         const int blocks_to_reduce = vector_array_size / arr_size_c;
         const int size_of_block = arr_size_c;
@@ -110,9 +109,9 @@ namespace gr {
             (malloc(nr_chunks * process_at_once * vector_array_size * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
-        // TODO: check the size of res_mult
         res_mult = static_cast<int32_t *>
             (malloc(nr_chunks * vector_array_size * sizeof(int32_t)));
+//            (malloc(nr_elem_calc * nr_chunks * sizeof(int32_t)));
 
         if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
           std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
@@ -223,7 +222,7 @@ namespace gr {
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(in_arr_curr, d_vii_matrix, arr_in_chunk, idx_curr_chunk);
+        prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
         prepareInMatConnex(in_mat_cnx, U_N_sq);
 
         connex->writeDataToArray(in_mat_cnx, process_at_once, 511);
@@ -231,7 +230,6 @@ namespace gr {
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
           res_curr_chunk = &res_mult[cnt_chunk * vector_array_size];
 
-          // TODO make variables for LS number in which to load
           connex->writeDataToArray(in_arr_curr, process_at_once, 0);
 
           int res = executeMultiplyArrMat(connex);
@@ -244,14 +242,13 @@ namespace gr {
             in_arr_next = in_arr_curr + process_at_once * vector_array_size;
             idx_next_chunk = idx_curr_chunk + arr_in_chunk;
 
-            prepareInArrConnex(in_arr_next, d_vii_matrix, arr_in_chunk,
+            prepareInArrConnex(in_arr_next, d_vii_matrix_trans, arr_in_chunk,
               idx_next_chunk);
           }
 
           // Process past data for all but the first chunk
           if (cnt_chunk != 0) {
             idx_past_chunk = idx_curr_chunk - arr_in_chunk;
-            // TODO
             prepareOutDataConnex(temp_chunk_results, res_past_chunk);
             processOutData(out_vec, cnt_chunk * arr_in_chunk,
               temp_chunk_results, d_vii_matrix, idx_past_chunk);
@@ -259,6 +256,13 @@ namespace gr {
 
           // 2 * ---> complex elements, so we have real *and* imag parts
           connex->readMultiReduction(2 * nr_elem_calc, res_curr_chunk);
+
+//          uint16_t *test = (uint16_t*)malloc(vector_array_size * sizeof(uint16_t));
+//          connex->readDataFromArray(test, 1, 1000);
+//          for (int j = 0; j < vector_array_size; j++) {
+//            std::cout << (float)(test[j]) / factor_mult1 << std::endl;
+//          }
+//          free(test);
 
           // Increment for next chunk
           in_arr_curr = in_arr_next;
@@ -275,13 +279,13 @@ namespace gr {
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
 
-        gr_complex Q_temp;
-        for (int ii = 0; ii < d_pspectrum_len; ii++)
-        {
-          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-          out_vec(ii) = 1.0/Q_temp.real();
-        }
-        out_vec = 10.0*log10(out_vec/out_vec.max());
+//        gr_complex Q_temp;
+//        for (int ii = 0; ii < d_pspectrum_len; ii++)
+//        {
+//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+//          out_vec(ii) = 1.0/Q_temp.real();
+//        }
+//        out_vec = 10.0*log10(out_vec/out_vec.max());
       }
 
       // Tell runtime system how many output items we produced.
@@ -303,17 +307,26 @@ namespace gr {
       // pspectrum_len), aka (arr_size x nr_arrays)
 
       int idx_cnx = 0;
+//      std::cout << "======================================" << std::endl;
+//      std::cout << "start = " << arr_to_start << std::endl;
+//      std::cout << "stop = " << arr_to_start + arr_to_prepare << std::endl;
 
-      for (int i = arr_to_start; i < arr_to_prepare; i++) { // iterate through arrays
+      for (int i = arr_to_start; i < arr_to_start + arr_to_prepare; i++) { // iterate through arrays
         // Each array has to be multiplied with each column of the matrix, so we
         // store each array a number of arr_size consecutively
         for (int k = 0; k < arr_size; k++) {
           for (int j = 0; j < arr_size; j++) { // iterate through elements of array
             out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
+//            std::cout << "real[" << i << ", " << j << "] = " <<
+//            real(in_data(i,j)) << std::endl;
           }
         }
       }
+//      std::cout << idx_cnx << std::endl;
+//      for (int i = 0; i < vector_array_size; i++) {
+//        std::cout << out_arr[i] << std::endl;
+//      }
     }
 
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
@@ -349,6 +362,7 @@ namespace gr {
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
 
           out_data(i, j) = gr_complex(temp0, temp1);
+//          std::cout << out_data(i, j) << std::endl;
         }
       }
     }
@@ -395,54 +409,62 @@ namespace gr {
                                 // on which reduction is performed at once
         )
 
-        EXECUTE_IN_ALL(
-          R1 = LS[R25];           // z1 = a1 + j * b1
-          R2 = LS[R26];           // z2 = a2 + j * b2
-          R29 = INDEX;          // Used later to select PEs for reduction
-          R27 = size_of_block;  // Used to select blocks of ARR_SIZE_C for reduction
-
-          R3 = R1 * R2;         // a1 * a2, b1 * b2
-          R3 = MULT_HIGH();
-
-          CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
-          NOP;
-          R4 = SHIFT_REG;
-          R4 = R1 * R4;         // a1 * b2
-          R4 = MULT_HIGH();
-
-          CELL_SHR(R2, R30);
-          NOP;
-          R5 = SHIFT_REG;
-          R5 = R1 * R5;         // b1 * a2
-          R5 = MULT_HIGH();
-
-          R9 = INDEX;           // Select only the odd PEs
-          R9 = R9 & R30;
-          R7 = (R9 == R30);
-        )
-
-        EXECUTE_WHERE_EQ(       // Only in the odd PEs
-          // Getting -b1 * b2 in each odd cell
-          R3 = R31 - R3;        // All partial real parts are in R3
-
-          R4 = R5;              // All partial imaginary parts are now in R4
-        )
-
-        REPEAT_X_TIMES(blocks_to_reduce);
+//        for (int i = 0; i < process_at_once; i++) {
           EXECUTE_IN_ALL(
-            R7 = (R29 < R27);   // Select only blocks of 8 PEs at a time by
-                                // checking that the index is < k * 8
+            R1 = LS[R25];           // z1 = a1 + j * b1
+            R2 = LS[R26];           // z2 = a2 + j * b2
+            R29 = INDEX;          // Used later to select PEs for reduction
+            R27 = size_of_block;  // Used to select blocks of ARR_SIZE_C for reduction
+
+            LS[1000] = R1;
+
+            R3 = R1 * R2;         // a1 * a2, b1 * b2
+            R3 = MULT_HIGH();
+
+            CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
+            NOP;
+            R4 = SHIFT_REG;
+            R4 = R1 * R4;         // a1 * b2
+            R4 = MULT_HIGH();
+
+            CELL_SHR(R2, R30);
+            NOP;
+            R5 = SHIFT_REG;
+            R5 = R1 * R5;         // b1 * a2
+            R5 = MULT_HIGH();
+
+            R9 = INDEX;           // Select only the odd PEs
+            R9 = R9 & R30;
+            R7 = (R9 == R30);
           )
-          EXECUTE_WHERE_LT(
-            R29 = 129;          // A random number > 128 so these PEs won't be
-                                // selected again
-            REDUCE(R3);         // Real part
-            REDUCE(R4);         // Imaginary part
+
+          EXECUTE_WHERE_EQ(       // Only in the odd PEs
+            // Getting -b1 * b2 in each odd cell
+            R3 = R31 - R3;        // All partial real parts are in R3
+
+            R4 = R5;              // All partial imaginary parts are now in R4
           )
-          EXECUTE_IN_ALL(
-            R27 = R27 + R28;    // Go to the next block of 8 PEs
-          )
-        END_REPEAT;
+
+          REPEAT_X_TIMES(blocks_to_reduce);
+            EXECUTE_IN_ALL(
+              R7 = (R29 < R27);   // Select only blocks of 8 PEs at a time by
+                                  // checking that the index is < k * 8
+            )
+            EXECUTE_WHERE_LT(
+              R29 = 129;          // A random number > 128 so these PEs won't be
+                                  // selected again
+              REDUCE(R3);         // Real part
+              REDUCE(R4);         // Imaginary part
+            )
+            EXECUTE_IN_ALL(
+              R27 = R27 + R28;    // Go to the next block of 8 PEs
+            )
+          END_REPEAT;
+
+//          EXECUTE_IN_ALL(
+//            R25 = R25 + R30;      // Go to the next LS
+//          )
+//        }
 
       END_KERNEL("multiply_arr_mat");
     }
