@@ -114,6 +114,9 @@ namespace gr {
           std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
         }
 
+        // Form matrix that will store the temporary results in a chunk
+        temp_chunk_results = cx_fmat(arr_size, arr_in_chunk, fill::zeros);
+
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
         for (int nn = 0; nn < d_num_ant_ele; nn++)
@@ -199,8 +202,6 @@ namespace gr {
          * Determine pseudo-spectrum for each value of theta in [0.0, 180.0)
          *===================================================================*/
 
-
-
         // We have a number of d_spectrum_len arrays to be multiplied by the
         // same matrix U_N_sq and we process the matrix multiplications in chunks
 
@@ -216,9 +217,6 @@ namespace gr {
 
         // Indices of next, past and current array chunks in matrix format
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
-
-//        const gr_complex *mat = in1_round; // Using the same mat for all chunks
-//        gr_complex *out_curr_chunk = out_round, *out_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
         prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
@@ -247,8 +245,9 @@ namespace gr {
           if (cnt_chunk != 0) {
             idx_past_chunk = idx_curr_chunk - arr_in_chunk;
             // TODO
-//            prepareOutDataConnex();
-//            multLineCol();
+            prepareOutDataConnex(temp_chunk_results, res_past_chunk);
+            processOutData(out_vec, cnt_chunk * arr_in_chunk,
+              temp_chunk_results, d_vii_matrix, idx_past_chunk);
           }
 
           // 2 * ---> complex elements, so we have real *and* imag parts
@@ -263,16 +262,19 @@ namespace gr {
 
         // Results for the last chunk
         idx_past_chunk = idx_curr_chunk - arr_in_chunk;
-//        prepareOutDataConnex();
-//        multLineCol();
+        prepareOutDataConnex(temp_chunk_results, res_past_chunk);
+        processOutData(out_vec, (nr_chunks - 1) * arr_in_chunk,
+          temp_chunk_results, d_vii_matrix, idx_past_chunk);
 
-        gr_complex Q_temp;
-        for (int ii = 0; ii < d_pspectrum_len; ii++)
-        {
-          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-          out_vec(ii) = 1.0/Q_temp.real();
-        }
-        out_vec = 10.0*log10(out_vec/out_vec.max());
+        out_vec = 10.0 * log10(out_vec/out_vec.max());
+
+//        gr_complex Q_temp;
+//        for (int ii = 0; ii < d_pspectrum_len; ii++)
+//        {
+//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+//          out_vec(ii) = 1.0/Q_temp.real();
+//        }
+//        out_vec = 10.0*log10(out_vec/out_vec.max());
       }
 
       // Tell runtime system how many output items we produced.
@@ -283,6 +285,7 @@ namespace gr {
      * Method that prepare in/out data to work with the ConnexArray
      * Prepare = scale and cast
      *===================================================================*/
+    // TODO possibly pointless to pass arr_to_prepare
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
       uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
       const int arr_to_start)
@@ -343,6 +346,20 @@ namespace gr {
       }
     }
 
+    void MUSIC_lin_array_cnx_impl::processOutData(
+      fvec &out_vec, const int idx_to_start, cx_fmat &temp_res, cx_fmat &in_arr,
+      const int arr_to_start)
+    {
+      int idx_out = idx_to_start;
+      gr_complex temp_out;
+
+      int j, k;
+
+      for (j = 0, k = arr_to_start; j < arr_in_chunk; j++, k++) {
+        temp_out = as_scalar(temp_res.col(j) * in_arr.col(k));
+        out_vec(idx_out++) = 1.0/temp_out.real();
+      }
+    }
 
     /*===================================================================
      * Define ConnexArray kernels that will be used in the worker

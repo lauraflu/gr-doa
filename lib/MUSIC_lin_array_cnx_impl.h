@@ -45,6 +45,8 @@ namespace gr {
       cx_fmat d_vii_matrix;
       cx_fmat d_vii_matrix_trans;
 
+      cx_fmat temp_chunk_results;
+
       /*====================================================================
        * CONNEX KERNEL RELATED
        *===================================================================*/
@@ -126,6 +128,15 @@ namespace gr {
       void prepareInMatConnex(uint16_t *out_mat, const cx_fmat &in_mat);
 
       void prepareOutDataConnex(cx_fmat &out_data, const int32_t *raw_out_data);
+
+      void processOutData(
+        fvec &out_vec,
+        const int idx_to_start,
+        cx_fmat &temp_res,
+        cx_fmat &in_arr,
+        const int arr_to_start);
+
+
 
      public:
       void amv(cx_fcolvec& v_ii, fcolvec& array_loc, float theta);
