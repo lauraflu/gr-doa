@@ -73,6 +73,9 @@ namespace gr {
       int nr_elem_chunk;
       int nr_elem_calc;
 
+      // Elements to prepare for the ConnexArray in a chunk
+      int elems_to_prepare;
+
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
       int32_t *res_mult;
@@ -89,6 +92,12 @@ namespace gr {
         int size_of_block,
         int blocks_to_reduce);
 
+      void prepareInArrConnex(
+        uint16_t *out_arr,
+        const cx_mat &in_data,
+        const int arr_to_prepare);
+
+      void prepareInMatConnex(uint16_t *out_mat, const cx_mat &in_mat);
 
      public:
       void amv(cx_fcolvec& v_ii, fcolvec& array_loc, float theta);

@@ -78,6 +78,7 @@ namespace gr {
         nr_chunks = nr_arrays / arr_in_chunk;
         nr_elem_chunk = arr_in_chunk * arr_size;
         nr_elem_calc = process_at_once * vector_array_size / arr_size_c;
+        elems_to_prepare = process_at_once * vector_array_size / 2;
 
         // Create ConnexMachine instance
         try {
@@ -98,6 +99,19 @@ namespace gr {
 
         // Create the kernel
         multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
+
+        // Allocate memory for the data that will be passed to the ConnexArray
+        // and the data that it produces.
+        in0_i = static_cast<uint16_t *>
+            (malloc(nr_chunks * vector_array_size * sizeof(uint16_t)));
+        in1_i = static_cast<uint16_t *>
+            (malloc(vector_array_size * sizeof(uint16_t)));
+        res_mult = static_cast<int32_t *>
+            (malloc(nr_chunks * vector_array_size * sizeof(int32_t)));
+
+        if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
+          std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
+        }
 
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
@@ -138,6 +152,9 @@ namespace gr {
     MUSIC_lin_array_cnx_impl::~MUSIC_lin_array_cnx_impl()
     {
       delete connex;
+      free(in0_i);
+      free(in1_i);
+      free(res_mult);
     }
 
     // array manifold vector generating function
@@ -165,31 +182,107 @@ namespace gr {
       cx_fmat U_N_sq;
       for (int item = 0; item < noutput_items; item++)
       {
-          // make input pointer into matrix pointer
-          cx_fmat in_matrix(in+item*d_num_ant_ele*d_num_ant_ele, d_num_ant_ele, d_num_ant_ele);
-          fvec out_vec(out+item*d_pspectrum_len, d_pspectrum_len, COPY_MEM, FIX_SIZE);
+        // make input pointer into matrix pointer
+        cx_fmat in_matrix(in + item * d_num_ant_ele * d_num_ant_ele, d_num_ant_ele, d_num_ant_ele);
+        fvec out_vec(out + item * d_pspectrum_len, d_pspectrum_len, COPY_MEM, FIX_SIZE);
 
-          // determine EVD of the auto-correlation matrix
-          eig_sym(eig_val, eig_vec, in_matrix);
+        // determine EVD of the auto-correlation matrix
+        eig_sym(eig_val, eig_vec, in_matrix);
 
-          // noise subspace and its square matrix
-          U_N = eig_vec.cols(0, d_num_ant_ele-d_num_targets-1);
+        // noise subspace and its square matrix
+        U_N = eig_vec.cols(0, d_num_ant_ele - d_num_targets - 1);
 
-          U_N_sq = U_N*trans(U_N);
+        U_N_sq = U_N*trans(U_N);
 
-          // determine pseudo-spectrum for each value of theta in [0.0, 180.0)
-          gr_complex Q_temp;
-          for (int ii = 0; ii < d_pspectrum_len; ii++)
-          {
-            Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-            out_vec(ii) = 1.0/Q_temp.real();
-          }
-          out_vec = 10.0*log10(out_vec/out_vec.max());
+        /*====================================================================
+         * Determine pseudo-spectrum for each value of theta in [0.0, 180.0)
+         *===================================================================*/
+
+
+
+        // We have a number of d_spectrum_len arrays to be multiplied by the
+        // same matrix U_N_sq and we process the matrix multiplications in chunks
+
+        // Pointers to the current and the next input chunks for the CnxArr
+        uint16_t *in0_curr, *in1_curr, *in0_next;
+
+        // Prepare the first chunk
+        in0_curr = in0_i;
+        in1_curr = in1_i;
+
+        // Pointers to the current and past result chunks
+        int32_t *res_curr_chunk, *res_past_chunk = NULL;
+
+        // Indices of next, past and current array chunks in matrix format
+        int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
+
+//        const gr_complex *mat = in1_round; // Using the same mat for all chunks
+//        gr_complex *out_curr_chunk = out_round, *out_past_chunk;
+
+        // Prepare current array and matrix for storage in Connex
+//        prepareInArrConnex(in0_curr, arr_curr_chunk, elems_to_prepare);
+//        prepareInMatConnex(in1_curr, mat, elems_to_prepare);
+
+
+
+
+
+        gr_complex Q_temp;
+        for (int ii = 0; ii < d_pspectrum_len; ii++)
+        {
+          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+          out_vec(ii) = 1.0/Q_temp.real();
+        }
+        out_vec = 10.0*log10(out_vec/out_vec.max());
       }
 
       // Tell runtime system how many output items we produced.
       return noutput_items;
+    }
 
+    /*===================================================================
+     * Method that prepare in/out data to work with the ConnexArray
+     * Prepare = scale and cast
+     *===================================================================*/
+    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
+      uint16_t *out_arr, const cx_mat &in_data, const int arr_to_prepare)
+    {
+      // in_data is a complex matrix whose columns represent an array to be
+      // multiplied with the matrix and has a number of pspectrum_len columns of
+      // such arrays. Therefore, it's a matrix of size (d_num_ant_ele x
+      // pspectrum_len), aka (arr_size x nr_arrays)
+
+      int idx_cnx = 0;
+
+      for (int i = 0; i < arr_to_prepare; i++) { // iterate through arrays
+        // Each array has to be multiplied with each column of the matrix, so we
+        // store each array a number of arr_size consecutively
+        for (int k = 0; k < arr_size; k++) {
+          for (int j = 0; j < arr_size; j++) { // iterate through elements of array
+            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
+            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
+          }
+        }
+      }
+    }
+
+    void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
+      uint16_t *out_mat, const cx_mat &in_mat)
+    {
+      // Only one LS will contain the matrix => See how many times we have to
+      // repeat it to store it in the one LS
+      const int nr_repeats = vector_array_size / mat_size_c;
+      int idx_cnx = 0;
+
+      for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
+        // Store column-first
+        for (int j = 0; j < mat_size; j++) {
+          for (int i = 0; i < mat_size; i++) {
+            out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
+            out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+          }
+        }
+      }
     }
 
     /*===================================================================
