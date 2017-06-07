@@ -66,7 +66,39 @@ namespace gr {
               d_num_targets(num_targets),
               d_num_ant_ele(num_ant_ele),
               d_pspectrum_len(pspectrum_len)
+      , arr_size(num_ant_ele)
+      , nr_arrays(pspectrum_len)
     {
+        // Variables calculated based on the input parameters
+        mat_size = arr_size * arr_size;
+        arr_size_c = arr_size * 2;
+        mat_size_c = mat_size * 2;
+        nr_arrays_elems = nr_arrays * arr_size;
+        arr_in_chunk = (process_at_once * vector_array_size) / mat_size_c;
+        nr_chunks = nr_arrays / arr_in_chunk;
+        nr_elem_chunk = arr_in_chunk * arr_size;
+        nr_elem_calc = process_at_once * vector_array_size / arr_size_c;
+
+        // Create ConnexMachine instance
+        try {
+          connex = new ConnexMachine(distributionFIFO,
+                                     reductionFIFO,
+                                     writeFIFO,
+                                     readFIFO);
+        } catch (std::string err) {
+          std::cout << err << std::endl;
+        }
+
+        factor_mult1 = 1 << 14;
+        factor_mult2 = 1 << 16;
+        factor_res = 1 << 14;
+
+        const int blocks_to_reduce = vector_array_size / arr_size_c;
+        const int size_of_block = arr_size_c;
+
+        // Create the kernel
+        multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
+
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
         for (int nn = 0; nn < d_num_ant_ele; nn++)
@@ -105,6 +137,7 @@ namespace gr {
      */
     MUSIC_lin_array_cnx_impl::~MUSIC_lin_array_cnx_impl()
     {
+      delete connex;
     }
 
     // array manifold vector generating function
@@ -158,6 +191,86 @@ namespace gr {
       return noutput_items;
 
     }
+
+    /*===================================================================
+     * Define ConnexArray kernels that will be used in the worker
+     *===================================================================*/
+    int MUSIC_lin_array_cnx_impl::executeMultiplyArrMat(ConnexMachine *connex)
+    {
+      try {
+        connex->executeKernel("multiply_arr_mat");
+      } catch (std::string e) {
+        std::cout << e << std::endl;
+        return -1;
+      }
+      return 0;
+    }
+
+    void MUSIC_lin_array_cnx_impl::multiply_kernel(
+      int process_at_once, int size_of_block, int blocks_to_reduce)
+    {
+      BEGIN_KERNEL("multiply_arr_mat");
+        EXECUTE_IN_ALL(
+          R25 = 0;
+          R26 = 511;
+          R30 = 1;
+          R31 = 0;
+          R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
+                                // on which reduction is performed at once
+        )
+
+        EXECUTE_IN_ALL(
+          R1 = LS[R25];           // z1 = a1 + j * b1
+          R2 = LS[R26];           // z2 = a2 + j * b2
+          R29 = INDEX;          // Used later to select PEs for reduction
+          R27 = size_of_block;  // Used to select blocks of ARR_SIZE_C for reduction
+
+          R3 = R1 * R2;         // a1 * a2, b1 * b2
+          R3 = MULT_HIGH();
+
+          CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
+          NOP;
+          R4 = SHIFT_REG;
+          R4 = R1 * R4;         // a1 * b2
+          R4 = MULT_HIGH();
+
+          CELL_SHR(R2, R30);
+          NOP;
+          R5 = SHIFT_REG;
+          R5 = R1 * R5;         // b1 * a2
+          R5 = MULT_HIGH();
+
+          R9 = INDEX;           // Select only the odd PEs
+          R9 = R9 & R30;
+          R7 = (R9 == R30);
+        )
+
+        EXECUTE_WHERE_EQ(       // Only in the odd PEs
+          // Getting -b1 * b2 in each odd cell
+          R3 = R31 - R3;        // All partial real parts are in R3
+
+          R4 = R5;              // All partial imaginary parts are now in R4
+        )
+
+        REPEAT_X_TIMES(blocks_to_reduce);
+          EXECUTE_IN_ALL(
+            R7 = (R29 < R27);   // Select only blocks of 8 PEs at a time by
+                                // checking that the index is < k * 8
+          )
+          EXECUTE_WHERE_LT(
+            R29 = 129;          // A random number > 128 so these PEs won't be
+                                // selected again
+            REDUCE(R3);         // Real part
+            REDUCE(R4);         // Imaginary part
+          )
+          EXECUTE_IN_ALL(
+            R27 = R27 + R28;    // Go to the next block of 8 PEs
+          )
+        END_REPEAT;
+
+      END_KERNEL("multiply_arr_mat");
+    }
+
 
   } /* namespace doa */
 } /* namespace gr */
