@@ -103,9 +103,10 @@ namespace gr {
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-            (malloc(nr_chunks * vector_array_size * sizeof(uint16_t)));
+            (malloc(nr_chunks * process_at_once * vector_array_size * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
+        // TODO: check the size of res_mult
         res_mult = static_cast<int32_t *>
             (malloc(nr_chunks * vector_array_size * sizeof(int32_t)));
 
@@ -204,11 +205,11 @@ namespace gr {
         // same matrix U_N_sq and we process the matrix multiplications in chunks
 
         // Pointers to the current and the next input chunks for the CnxArr
-        uint16_t *in0_curr, *in1_curr, *in0_next;
+        uint16_t *in_arr_curr, *in_arr_next, *in_mat_cnx;
 
         // Prepare the first chunk
-        in0_curr = in0_i;
-        in1_curr = in1_i;
+        in_arr_curr = in0_i;
+        in_mat_cnx = in1_i;
 
         // Pointers to the current and past result chunks
         int32_t *res_curr_chunk, *res_past_chunk = NULL;
@@ -220,12 +221,50 @@ namespace gr {
 //        gr_complex *out_curr_chunk = out_round, *out_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-//        prepareInArrConnex(in0_curr, arr_curr_chunk, elems_to_prepare);
-//        prepareInMatConnex(in1_curr, mat, elems_to_prepare);
+        prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
+        prepareInMatConnex(in_mat_cnx, U_N_sq);
 
+        connex->writeDataToArray(in_mat_cnx, process_at_once, 511);
 
+        for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
+          res_curr_chunk = &res_mult[cnt_chunk * vector_array_size];
 
+          // TODO make variables for LS number in which to load
+          connex->writeDataToArray(in_arr_curr, process_at_once, 0);
 
+          executeMultiplyArrMat(connex);
+
+          // Prepare future data for all but the last chunk
+          if (cnt_chunk != nr_chunks - 1) {
+            in_arr_next = in_arr_curr + process_at_once * vector_array_size;
+            idx_next_chunk = idx_curr_chunk + arr_in_chunk;
+
+            prepareInArrConnex(in_arr_next, d_vii_matrix_trans, arr_in_chunk,
+              idx_next_chunk);
+          }
+
+          // Process past data for all but the first chunk
+          if (cnt_chunk != 0) {
+            idx_past_chunk = idx_curr_chunk - arr_in_chunk;
+            // TODO
+//            prepareOutDataConnex();
+//            multLineCol();
+          }
+
+          // 2 * ---> complex elements, so we have real *and* imag parts
+          connex->readMultiReduction(2 * nr_elem_calc, res_curr_chunk);
+
+          // Increment for next chunk
+          in_arr_curr = in_arr_next;
+          idx_past_chunk = idx_curr_chunk;
+          idx_curr_chunk = idx_next_chunk;
+          res_past_chunk = res_curr_chunk;
+        } // end loop for each chunk
+
+        // Results for the last chunk
+        idx_past_chunk = idx_curr_chunk - arr_in_chunk;
+//        prepareOutDataConnex();
+//        multLineCol();
 
         gr_complex Q_temp;
         for (int ii = 0; ii < d_pspectrum_len; ii++)
@@ -245,7 +284,8 @@ namespace gr {
      * Prepare = scale and cast
      *===================================================================*/
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-      uint16_t *out_arr, const cx_mat &in_data, const int arr_to_prepare)
+      uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
+      const int arr_to_start)
     {
       // in_data is a complex matrix whose columns represent an array to be
       // multiplied with the matrix and has a number of pspectrum_len columns of
@@ -254,7 +294,7 @@ namespace gr {
 
       int idx_cnx = 0;
 
-      for (int i = 0; i < arr_to_prepare; i++) { // iterate through arrays
+      for (int i = arr_to_start; i < arr_to_prepare; i++) { // iterate through arrays
         // Each array has to be multiplied with each column of the matrix, so we
         // store each array a number of arr_size consecutively
         for (int k = 0; k < arr_size; k++) {
@@ -267,7 +307,7 @@ namespace gr {
     }
 
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
-      uint16_t *out_mat, const cx_mat &in_mat)
+      uint16_t *out_mat, const cx_fmat &in_mat)
     {
       // Only one LS will contain the matrix => See how many times we have to
       // repeat it to store it in the one LS
@@ -284,6 +324,25 @@ namespace gr {
         }
       }
     }
+
+    void MUSIC_lin_array_cnx_impl::prepareOutDataConnex(
+      cx_fmat &out_data, const int32_t *raw_out_data)
+    {
+      float temp0, temp1;
+      int cnt_cnx = 0;
+
+      // Resultig array of a multiplication is stored column-wise for faster
+      // access, since Armadillo matrices are stored column-wise
+      for (int j = 0; j < arr_in_chunk; j++) {
+        for (int i = 0; i < arr_size; i++) {
+          temp0 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
+          temp1 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
+
+          out_data(i, j) = gr_complex(temp0, temp1);
+        }
+      }
+    }
+
 
     /*===================================================================
      * Define ConnexArray kernels that will be used in the worker

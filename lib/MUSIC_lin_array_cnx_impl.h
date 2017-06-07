@@ -92,12 +92,40 @@ namespace gr {
         int size_of_block,
         int blocks_to_reduce);
 
+      /* \brief Prepares (scales and converts to uint16_t) the elements of an
+       *        array which will be stored in the ConnexArray.
+       * \param out_arr Pointer to the block of data that will be fed to the
+       *        ConnexArray. The size of this block needs to be at least
+       *        (arr_to_prepare * arr_size * arr_size * 2). The 2 comes from the
+       *        fact that the elements to prepare are complex, so we need space
+       *        for both the real and the imaginary part.
+       * \param in_data The input matrix that contains elements to be prepared.
+       *        Each column is an array that will be multiplied with a matrix in
+       *        the kernel. It needs to have at least (arr_to_prepare * arr_size
+       *        * arr_size) elements.
+       * \param arr_to_prepare The number of arrays in a chunk that will be
+       *        prepared
+       * \param arr_to_start The index of the array from which to start
+       */
       void prepareInArrConnex(
         uint16_t *out_arr,
-        const cx_mat &in_data,
-        const int arr_to_prepare);
+        const cx_fmat &in_data,
+        const int arr_to_prepare,
+        const int arr_to_start);
 
-      void prepareInMatConnex(uint16_t *out_mat, const cx_mat &in_mat);
+      /* \brief Prepares (scales and converts) the elements of the matrix that
+       *        will be fed to the ConnexArray. For each output item, the matrix
+       *        that is multiplied with the arrays is the same, so it will
+       *        spread across only a LS.
+       * \param out_mat Pointer to the block of data that will be fed to the
+       *        ConnexArray. Needs to have space for at least vector_array_size
+       *        elements.
+       * \param in_mat The matrix that needs to be prepared. Needs to have at
+       *        least arr_size * arr_size elements.
+       */
+      void prepareInMatConnex(uint16_t *out_mat, const cx_fmat &in_mat);
+
+      void prepareOutDataConnex(cx_fmat &out_data, const int32_t *raw_out_data);
 
      public:
       void amv(cx_fcolvec& v_ii, fcolvec& array_loc, float theta);
