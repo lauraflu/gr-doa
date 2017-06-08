@@ -163,6 +163,9 @@ namespace gr {
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+//            std::cout << "Current elem: (" << cnt_row << ", " << cnt_col << ")"
+//            << std::endl;
+
             // TODO maybe better with real assignation; this destroys and
             // creates new elements with this value
             row_nr.assign(vector_array_size, cnt_row);
@@ -177,10 +180,15 @@ namespace gr {
             }
 
             // Process past data for all but the first element
-            if ((cnt_row != 0) && (cnt_col != 0)) {
+            if (!(cnt_row == 0 && cnt_col == 0)) {
+//              std::cout << "Processing for elem (" << past_row << ", " << past_col << ")"
+//              << std::endl;
+
               // Output array stored column-first
               past_idx = past_row + past_col * n_rows;
               sym_idx = past_col + past_row * n_rows;
+//              std::cout << "past_idx = " << past_idx << " and sym idx = "
+//                << sym_idx << std::endl;
               out_data[past_idx] =
                 prepareAndProcessOutData(past_out_data_cnx, n_red_per_elem);
 
