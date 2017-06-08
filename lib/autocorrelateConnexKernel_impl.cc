@@ -31,8 +31,6 @@
 namespace gr {
   namespace doa {
 
-    std::vector<uint16_t> row_nr;
-    std::vector<uint16_t> col_nr;
 
     int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
     void autocorrelationKernel(const int nr_loops);
@@ -109,8 +107,16 @@ namespace gr {
       in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
       out_data_cnx = static_cast<int32_t *>(malloc(nr_elem_calc * n_red_per_elem * sizeof(int32_t)));
 
-      d_nonoverlap_size = d_snapshot_size-d_overlap_size;
-      set_history(d_overlap_size+1);
+      idx_val.resize(n_rows);
+      for (int i = 0; i < n_rows; i++) {
+        idx_val[i].resize(vector_array_size);
+        for (int j = 0; j < vector_array_size; j++) {
+          idx_val[i][j] = i;
+        }
+      }
+
+      d_nonoverlap_size = d_snapshot_size - d_overlap_size;
+      set_history(d_overlap_size + 1);
     }
 
     /*
@@ -163,16 +169,11 @@ namespace gr {
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
-//            std::cout << "Current elem: (" << cnt_row << ", " << cnt_col << ")"
-//            << std::endl;
-
             // TODO maybe better with real assignation; this destroys and
             // creates new elements with this value
-            row_nr.assign(vector_array_size, cnt_row);
-            col_nr.assign(vector_array_size, cnt_col);
 
-            connex->writeDataToArray(row_nr.data(), 1, 1022);
-            connex->writeDataToArray(col_nr.data(), 1, 1023);
+            connex->writeDataToArray(idx_val[cnt_row].data(), 1, 1022);
+            connex->writeDataToArray(idx_val[cnt_col].data(), 1, 1023);
 
             int result = executeLocalKernel(connex, autocorrelation_kernel);
             if (result) {
@@ -181,33 +182,19 @@ namespace gr {
 
             // Process past data for all but the first element
             if (!(cnt_row == 0 && cnt_col == 0)) {
-//              std::cout << "Processing for elem (" << past_row << ", " << past_col << ")"
-//              << std::endl;
 
               // Output array stored column-first
               past_idx = past_row + past_col * n_rows;
               sym_idx = past_col + past_row * n_rows;
-//              std::cout << "past_idx = " << past_idx << " and sym idx = "
-//                << sym_idx << std::endl;
               out_data[past_idx] =
                 prepareAndProcessOutData(past_out_data_cnx, n_red_per_elem);
 
               // Hermitian matrix => a_ij = conj(a_ji);
-//              if (past_idx != sym_idx) {
                 out_data[sym_idx] =
                   gr_complex(out_data[past_idx].real(), -out_data[past_idx].imag());
-//              }
             }
 
             connex->readMultiReduction(n_red_per_elem, curr_out_data_cnx);
-
-//            // process out data; consider out array stored column-first
-//            int curr_idx = cnt_row + cnt_col * n_rows;
-//            out_data[curr_idx] =
-//              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
-//            // Hermitian matrix => a_ij = conj(a_ji);
-//            out_data[cnt_col + cnt_row * n_rows] =
-//              gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
 
             past_out_data_cnx = curr_out_data_cnx;
             curr_out_data_cnx += n_red_per_elem;
@@ -216,6 +203,7 @@ namespace gr {
           }
         }
 
+        // Process data for the last chunk
         past_idx = (n_rows - 1) + (n_rows - 1) * n_rows;
         out_data[past_idx] = prepareAndProcessOutData(past_out_data_cnx, n_red_per_elem);
 

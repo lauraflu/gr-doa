@@ -48,6 +48,8 @@ namespace gr {
       int32_t *out_data_cnx;
       std::string autocorrelation_kernel = "autocorrelationKernel";
 
+      std::vector<std::vector<uint16_t>> idx_val;
+
       /*
        * Factors required for scaling the data
        */
