@@ -117,6 +117,13 @@ namespace gr {
 
       d_nonoverlap_size = d_snapshot_size - d_overlap_size;
       set_history(d_overlap_size + 1);
+
+      if (d_avg_method) {
+        refl_matrix.resize(n_rows);
+        for (int i = 0; i < n_rows; i++) {
+          refl_matrix[i].resize(n_rows);
+        }
+      }
     }
 
     /*
@@ -175,10 +182,8 @@ namespace gr {
             connex->writeDataToArray(idx_val[cnt_row].data(), 1, 1022);
             connex->writeDataToArray(idx_val[cnt_col].data(), 1, 1023);
 
-            int result = executeLocalKernel(connex, autocorrelation_kernel);
-            if (result) {
-              return (output_matrices);
-            }
+//            int result = executeLocalKernel(connex, autocorrelation_kernel);
+            executeLocalKernel(connex, autocorrelation_kernel);
 
             // Process past data for all but the first element
             if (!(cnt_row == 0 && cnt_col == 0)) {
@@ -211,11 +216,8 @@ namespace gr {
         // TODO: check if it's faster to use arma here
         if (d_avg_method) {
           std::complex<float> two_c = (2.0, 2.0);
-          std::vector<std::vector<gr_complex>> refl_matrix;
-          refl_matrix.resize(n_rows);
 
           for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            refl_matrix[cnt_row].resize(n_rows);
 
             for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
               int idx_row = n_rows - 1 - cnt_row;
@@ -256,18 +258,6 @@ namespace gr {
       }
     }
 
-    void autocorrelateConnexKernel_impl::prepareOutData(
-      gr_complex *out_data, const int32_t *in_data, const int n_elems_in)
-    {
-      float temp_real, temp_imag;
-      for (int i = 0; i < n_elems_in; i+=2) {
-        temp_real = static_cast<float>(in_data[i]) / factor_res;
-        temp_imag = static_cast<float>(in_data[i + 1]) / factor_res;
-
-        out_data[i / 2] = gr_complex(temp_real, temp_imag);
-      }
-    }
-
     void autocorrelateConnexKernel_impl::printOutData(
       const uint16_t *in_data, const int n_elems_in)
     {
@@ -287,16 +277,16 @@ namespace gr {
       float temp_real, temp_imag;
       float acc_real = 0, acc_imag = 0;
       for (int i = 0; i < n_elems_in; i+=2) {
-        temp_real = static_cast<float>(in_data[i]) / factor_res;
-        temp_imag = static_cast<float>(in_data[i + 1]) / factor_res;
+        temp_real = static_cast<float>(in_data[i]);
+        temp_imag = static_cast<float>(in_data[i + 1]);
 
         acc_real += temp_real;
         acc_imag += temp_imag;
       }
 
       // Divide by the snapshot size = n_cols
-      acc_real = acc_real / n_cols;
-      acc_imag = acc_imag / n_cols;
+      acc_real = (acc_real / factor_res) / n_cols;
+      acc_imag = (acc_imag / factor_res) / n_cols;
 
       return gr_complex(acc_real, acc_imag);
     }

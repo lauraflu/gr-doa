@@ -49,6 +49,7 @@ namespace gr {
       std::string autocorrelation_kernel = "autocorrelationKernel";
 
       std::vector<std::vector<uint16_t>> idx_val;
+      std::vector<std::vector<gr_complex>> refl_matrix;
 
       /*
        * Factors required for scaling the data
@@ -89,16 +90,6 @@ namespace gr {
         uint16_t *out_data,
         const gr_complex *in_data,
         const int n_elems_in);
-
-      /*
-       * There must be space for at least n_elems_in / 2 at the address pointed
-       * by out_data.
-       */
-      void prepareOutData(
-        gr_complex *out_data,
-        const int32_t *in_data,
-        const int n_elems_in
-      );
 
       void printOutData(
         const uint16_t *in_data,
