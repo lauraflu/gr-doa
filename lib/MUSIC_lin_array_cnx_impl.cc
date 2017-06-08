@@ -256,14 +256,6 @@ namespace gr {
 
           // 2 * ---> complex elements, so we have real *and* imag parts
           connex->readMultiReduction(2 * nr_elem_calc, res_curr_chunk);
-
-//          uint16_t *test = (uint16_t*)malloc(vector_array_size * sizeof(uint16_t));
-//          connex->readDataFromArray(test, 1, 1000);
-//          for (int j = 0; j < vector_array_size; j++) {
-//            std::cout << (float)(test[j]) / factor_mult1 << std::endl;
-//          }
-//          free(test);
-
           // Increment for next chunk
           in_arr_curr = in_arr_next;
           idx_past_chunk = idx_curr_chunk;
@@ -279,13 +271,6 @@ namespace gr {
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
 
-//        gr_complex Q_temp;
-//        for (int ii = 0; ii < d_pspectrum_len; ii++)
-//        {
-//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-//          out_vec(ii) = 1.0/Q_temp.real();
-//        }
-//        out_vec = 10.0*log10(out_vec/out_vec.max());
       }
 
       // Tell runtime system how many output items we produced.
@@ -307,9 +292,6 @@ namespace gr {
       // pspectrum_len), aka (arr_size x nr_arrays)
 
       int idx_cnx = 0;
-//      std::cout << "======================================" << std::endl;
-//      std::cout << "start = " << arr_to_start << std::endl;
-//      std::cout << "stop = " << arr_to_start + arr_to_prepare << std::endl;
 
       for (int i = arr_to_start; i < arr_to_start + arr_to_prepare; i++) { // iterate through arrays
         // Each array has to be multiplied with each column of the matrix, so we
@@ -318,15 +300,9 @@ namespace gr {
           for (int j = 0; j < arr_size; j++) { // iterate through elements of array
             out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
-//            std::cout << "real[" << i << ", " << j << "] = " <<
-//            real(in_data(i,j)) << std::endl;
           }
         }
       }
-//      std::cout << idx_cnx << std::endl;
-//      for (int i = 0; i < vector_array_size; i++) {
-//        std::cout << out_arr[i] << std::endl;
-//      }
     }
 
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
@@ -362,7 +338,6 @@ namespace gr {
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
 
           out_data(i, j) = gr_complex(temp0, temp1);
-//          std::cout << out_data(i, j) << std::endl;
         }
       }
     }
@@ -409,7 +384,7 @@ namespace gr {
                                 // on which reduction is performed at once
         )
 
-//        for (int i = 0; i < process_at_once; i++) {
+        for (int i = 0; i < process_at_once; i++) {
           EXECUTE_IN_ALL(
             R1 = LS[R25];           // z1 = a1 + j * b1
             R2 = LS[R26];           // z2 = a2 + j * b2
@@ -461,10 +436,10 @@ namespace gr {
             )
           END_REPEAT;
 
-//          EXECUTE_IN_ALL(
-//            R25 = R25 + R30;      // Go to the next LS
-//          )
-//        }
+          EXECUTE_IN_ALL(
+            R25 = R25 + R30;      // Go to the next LS
+          )
+        }
 
       END_KERNEL("multiply_arr_mat");
     }
