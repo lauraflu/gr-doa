@@ -104,8 +104,10 @@ namespace gr {
         std::cout << err << std::endl;
       }
 
+      int nr_elem_calc = (n_rows * (n_rows + 1)) / 2;
+
       in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
-      out_data_cnx = static_cast<int32_t *>(malloc(n_red_per_elem * sizeof(int32_t)));
+      out_data_cnx = static_cast<int32_t *>(malloc(nr_elem_calc * n_red_per_elem * sizeof(int32_t)));
 
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
@@ -154,6 +156,10 @@ namespace gr {
 
         connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
 
+        int32_t *curr_out_data_cnx = out_data_cnx, *past_out_data_cnx;
+        int past_row = 0, past_col = 0;
+        int past_idx, sym_idx;
+
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
@@ -170,21 +176,40 @@ namespace gr {
               return (output_matrices);
             }
 
-            connex->readMultiReduction(n_red_per_elem, out_data_cnx);
+            // Process past data for all but the first element
+            if ((cnt_row != 0) && (cnt_col != 0)) {
+              // Output array stored column-first
+              past_idx = past_row + past_col * n_rows;
+              sym_idx = past_col + past_row * n_rows;
+              out_data[past_idx] =
+                prepareAndProcessOutData(past_out_data_cnx, n_red_per_elem);
 
-            // process out data; consider out array stored column-first
-            int curr_idx = cnt_row + cnt_col * n_rows;
-            out_data[curr_idx] =
-              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
-            // Hermitian matrix => a_ij = conj(a_ji);
-            out_data[cnt_col + cnt_row * n_rows] =
-              gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
+              // Hermitian matrix => a_ij = conj(a_ji);
+//              if (past_idx != sym_idx) {
+                out_data[sym_idx] =
+                  gr_complex(out_data[past_idx].real(), -out_data[past_idx].imag());
+//              }
+            }
 
-//            std::cout << "data_out[" << cnt_row << ", " << cnt_col << "] = " <<
-//              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
-//              out_data[curr_idx] << " ";
+            connex->readMultiReduction(n_red_per_elem, curr_out_data_cnx);
+
+//            // process out data; consider out array stored column-first
+//            int curr_idx = cnt_row + cnt_col * n_rows;
+//            out_data[curr_idx] =
+//              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
+//            // Hermitian matrix => a_ij = conj(a_ji);
+//            out_data[cnt_col + cnt_row * n_rows] =
+//              gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
+
+            past_out_data_cnx = curr_out_data_cnx;
+            curr_out_data_cnx += n_red_per_elem;
+            past_row = cnt_row;
+            past_col = cnt_col;
           }
         }
+
+        past_idx = (n_rows - 1) + (n_rows - 1) * n_rows;
+        out_data[past_idx] = prepareAndProcessOutData(past_out_data_cnx, n_red_per_elem);
 
         // Averaging results
         // TODO: check if it's faster to use arma here
