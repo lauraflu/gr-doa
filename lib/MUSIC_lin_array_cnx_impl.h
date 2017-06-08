@@ -109,7 +109,6 @@ namespace gr {
       void prepareInArrConnex(
         uint16_t *out_arr,
         const cx_fmat &in_data,
-        const int arr_to_prepare,
         const int arr_to_start);
 
       /* \brief Prepares (scales and converts) the elements of the matrix that

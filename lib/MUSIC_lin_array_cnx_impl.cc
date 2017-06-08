@@ -89,9 +89,9 @@ namespace gr {
           std::cout << err << std::endl;
         }
 
-        factor_mult1 = 1 << 13;
+        factor_mult1 = 1 << 15;
         factor_mult2 = 1 << 15;
-        factor_res = 1 << 12;
+        factor_res = 1 << 14;
 
         const int blocks_to_reduce = vector_array_size / arr_size_c;
         const int size_of_block = arr_size_c;
@@ -208,27 +208,22 @@ namespace gr {
         // We have a number of d_spectrum_len arrays to be multiplied by the
         // same matrix U_N_sq and we process the matrix multiplications in chunks
 
-        // Pointers to the current and the next input chunks for the CnxArr
-        uint16_t *in_arr_curr, *in_arr_next, *in_mat_cnx;
-
         // Prepare the first chunk
-        in_arr_curr = in0_i;
-        in_mat_cnx = in1_i;
-
-        // Pointers to the current and past result chunks
-        int32_t *res_curr_chunk, *res_past_chunk = NULL;
+        uint16_t *in_arr_curr = in0_i;
+        uint16_t *in_mat_cnx = in1_i;
+        int32_t *res_curr_chunk;
 
         // Indices of next, past and current array chunks in matrix format
-        int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
+        int idx_curr_chunk = 0;
 
-        // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
         prepareInMatConnex(in_mat_cnx, U_N_sq);
-
         connex->writeDataToArray(in_mat_cnx, process_at_once, 511);
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
+          // Prepare current array and matrix for storage in Connex
           res_curr_chunk = &res_mult[cnt_chunk * vector_array_size];
+
+          prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, idx_curr_chunk);
 
           connex->writeDataToArray(in_arr_curr, process_at_once, 0);
 
@@ -237,55 +232,81 @@ namespace gr {
             return noutput_items;
           }
 
-          // Prepare future data for all but the last chunk
-          if (cnt_chunk != nr_chunks - 1) {
-            in_arr_next = in_arr_curr + process_at_once * vector_array_size;
-            idx_next_chunk = idx_curr_chunk + arr_in_chunk;
-
-            prepareInArrConnex(in_arr_next, d_vii_matrix_trans, arr_in_chunk,
-              idx_next_chunk);
-          }
-
-          // Process past data for all but the first chunk
-          if (cnt_chunk != 0) {
-            idx_past_chunk = idx_curr_chunk - arr_in_chunk;
-            prepareOutDataConnex(temp_chunk_results, res_past_chunk);
-            processOutData(out_vec, cnt_chunk * arr_in_chunk,
-              temp_chunk_results, d_vii_matrix, idx_past_chunk);
-          }
-
-          // 2 * ---> complex elements, so we have real *and* imag parts
           connex->readMultiReduction(2 * nr_elem_calc, res_curr_chunk);
 
-//          uint16_t *test = (uint16_t*)malloc(vector_array_size * sizeof(uint16_t));
-//          connex->readDataFromArray(test, 1, 1000);
-//          for (int j = 0; j < vector_array_size; j++) {
-//            std::cout << (float)(test[j]) / factor_mult1 << std::endl;
-//          }
-//          free(test);
+          prepareOutDataConnex(temp_chunk_results, res_curr_chunk);
 
-          // Increment for next chunk
-          in_arr_curr = in_arr_next;
-          idx_past_chunk = idx_curr_chunk;
-          idx_curr_chunk = idx_next_chunk;
-          res_past_chunk = res_curr_chunk;
+          processOutData(out_vec, cnt_chunk * arr_in_chunk,
+            temp_chunk_results, d_vii_matrix, idx_curr_chunk);
+
+          idx_curr_chunk += arr_in_chunk;
         } // end loop for each chunk
 
-        // Results for the last chunk
-        idx_past_chunk = idx_curr_chunk - arr_in_chunk;
-        prepareOutDataConnex(temp_chunk_results, res_past_chunk);
-        processOutData(out_vec, (nr_chunks - 1) * arr_in_chunk,
-          temp_chunk_results, d_vii_matrix, idx_past_chunk);
+        fvec keep_out = out_vec;
+        float keep_out_max = out_vec.max();
+        uword keep_idx_max = out_vec.index_max();
+        out_vec = 10.0*log10(out_vec/out_vec.max());
 
-        out_vec = 10.0 * log10(out_vec/out_vec.max());
+        gr_complex Q_temp;
+        fvec exp_vec(d_pspectrum_len);
+        for (int ii = 0; ii < d_pspectrum_len; ii++)
+        {
+          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+          exp_vec(ii) = Q_temp.real();
+          out_vec(ii) = 1.0/Q_temp.real();
+        }
 
-//        gr_complex Q_temp;
-//        for (int ii = 0; ii < d_pspectrum_len; ii++)
-//        {
-//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-//          out_vec(ii) = 1.0/Q_temp.real();
-//        }
-//        out_vec = 10.0*log10(out_vec/out_vec.max());
+        std::cout << "max expected at index " << exp_vec.index_max() << ": " <<
+        exp_vec.max() << ", got at index " << keep_idx_max << ": " <<
+        keep_out_max << std::endl;
+
+
+        out_vec = 10.0*log10(out_vec/out_vec.max());
+        for (int ii = 0; ii < d_pspectrum_len; ii++)
+        {
+          float angle = ii * 0.1757;
+          std::cout << "angle: " << angle << ", index: " << ii << ", expected: "
+          << exp_vec(ii) << ", got: " << keep_out(ii);
+          std::cout << std::endl;
+          if ((abs(angle - 10) < 0.1) || (abs(angle - 80) < 0.1)) {
+            std::cout << "array: ";
+            for (int k = 0; k < arr_size; k++) {
+              std::cout << d_vii_matrix_trans(ii, k) << " ";
+            }
+            std::cout << std::endl;
+            std::cout << "----------------" << std::endl;
+            std::cout << "matrix" << std::endl;
+
+            for (int k = 0; k < arr_size; k++) {
+              for (int j = 0; j < arr_size; j++) {
+                std::cout << U_N_sq(k, j) << " ";
+              }
+              std::cout << std::endl;
+            }
+            std::cout << "----------------" << std::endl;
+          }
+        }
+
+
+        std::cout << "=============================================" << std::endl;
+        std::cout << "STATS" << std::endl;
+        std::cout << "=============================================" << std::endl;
+
+        fvec err = exp_vec - keep_out;
+        float max_err = err.max();
+        float min_err = err.min();
+        uword idx_max_err = err.index_max();
+        uword idx_min_err = err.index_min();
+        float angle_max_err = idx_max_err * 0.1757;
+        float angle_min_err = idx_min_err * 0.1757;
+        float mean_err = mean(err);
+
+        std::cout << "Max err: " << max_err << " at index " << idx_max_err
+          << ", angle " << angle_max_err << std::endl;
+        std::cout << "Min err: " << min_err << " at index " << idx_min_err
+          << ", angle " << angle_min_err << std::endl;
+        std::cout << "Mean err: " << mean_err << std::endl;
+        std::cout << "=============================================" << std::endl;
       }
 
       // Tell runtime system how many output items we produced.
@@ -298,7 +319,7 @@ namespace gr {
      *===================================================================*/
     // TODO possibly pointless to pass arr_to_prepare
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-      uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
+      uint16_t *out_arr, const cx_fmat &in_data,
       const int arr_to_start)
     {
       // in_data is a complex matrix whose columns represent an array to be
@@ -307,25 +328,32 @@ namespace gr {
       // pspectrum_len), aka (arr_size x nr_arrays)
 
       int idx_cnx = 0;
-//      std::cout << "======================================" << std::endl;
-//      std::cout << "start = " << arr_to_start << std::endl;
-//      std::cout << "stop = " << arr_to_start + arr_to_prepare << std::endl;
 
-      for (int i = arr_to_start; i < arr_to_start + arr_to_prepare; i++) { // iterate through arrays
+      for (int i = arr_to_start; i < arr_to_start + arr_in_chunk; i++) { // iterate through arrays
         // Each array has to be multiplied with each column of the matrix, so we
         // store each array a number of arr_size consecutively
         for (int k = 0; k < arr_size; k++) {
           for (int j = 0; j < arr_size; j++) { // iterate through elements of array
             out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
-//            std::cout << "real[" << i << ", " << j << "] = " <<
-//            real(in_data(i,j)) << std::endl;
           }
         }
       }
-//      std::cout << idx_cnx << std::endl;
-//      for (int i = 0; i < vector_array_size; i++) {
-//        std::cout << out_arr[i] << std::endl;
+
+//      if ((arr_to_start <= 683) && (arr_to_start + arr_in_chunk >= 683)) {
+//        std::cout << "=============================================" << std::endl;
+//        std::cout << "MATCH INDEX" << std::endl;
+//        std::cout << "=============================================" << std::endl;
+//        std::cout << "arr_to_start = " << arr_to_start << std::endl;
+//        std::cout << "idx cnx = " << idx_cnx << std::endl;
+//        for (int k = 0; k < idx_cnx; k+=2) {
+//            if (k % 32 == 0) std::cout << std::endl;
+//            float temp_re = (float)out_arr[k] / factor_mult1;
+//            temp_re = (temp_re > 1) ? temp_re - 2 : temp_re;
+//            float temp_im = (float)out_arr[k+1] / factor_mult1;
+//            temp_im = (temp_im > 1) ? temp_im - 2 : temp_im;
+//            std::cout << gr_complex(temp_re, temp_im) << " ";
+//        }
 //      }
     }
 
@@ -337,15 +365,45 @@ namespace gr {
       const int nr_repeats = vector_array_size / mat_size_c;
       int idx_cnx = 0;
 
+//      std::cout << "=============================================" << std::endl;
+//      std::cout << "MATRIX" << std::endl;
+//      std::cout << "=============================================" << std::endl;
+
       for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
         // Store column-first
         for (int j = 0; j < arr_size; j++) {
           for (int i = 0; i < arr_size; i++) {
-            out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
-            out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+            out_mat[idx_cnx] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
+
+            float temp_re = (float)out_mat[idx_cnx] / factor_mult2;
+            temp_re = (temp_re > 1) ? temp_re - 2 : temp_re;
+            idx_cnx++;
+            out_mat[idx_cnx] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+
+            float temp_im = (float)out_mat[idx_cnx] / factor_mult2;
+            temp_im = (temp_im > 1) ? temp_im - 2 : temp_im;
+            idx_cnx++;
+
+//            std::cout << "should: in_mat(" << i << ", " << j << ") = "
+//            << in_mat(i,j) << ", got: " << gr_complex(temp_re, temp_im) <<
+//            std::endl;
           }
+//          std::cout << std::endl;
         }
+//        std::cout << std::endl;
       }
+
+//      for (int k = 0; k < idx_cnx; k+=2) {
+//          if (k % 32 == 0) std::cout << std::endl;
+//          if (k % 8 == 0) std::cout << std::endl;
+//          float temp_re = (float)out_mat[k] / factor_mult2;
+//          temp_re = (temp_re > 1) ? temp_re - 2 : temp_re;
+//          float temp_im = (float)out_mat[k+1] / factor_mult2;
+//          temp_im = (temp_im > 1) ? temp_im - 2 : temp_im;
+//          std::cout << gr_complex(temp_re, temp_im) << " ";
+//          if (k % 32 == 0) std::cout << std::endl;
+//      }
+
     }
 
     void MUSIC_lin_array_cnx_impl::prepareOutDataConnex(
@@ -354,15 +412,12 @@ namespace gr {
       float temp0, temp1;
       int cnt_cnx = 0;
 
-      // Resultig array of a multiplication is stored column-wise for faster
-      // access, since Armadillo matrices are stored column-wise
       for (int i = 0; i < arr_in_chunk; i++) {
         for (int j = 0; j < arr_size; j++) {
-          temp0 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
-          temp1 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
+          temp0 = static_cast<float>(raw_out_data[cnt_cnx++]);
+          temp1 = static_cast<float>(raw_out_data[cnt_cnx++]);
 
           out_data(i, j) = gr_complex(temp0, temp1);
-//          std::cout << out_data(i, j) << std::endl;
         }
       }
     }
@@ -373,12 +428,17 @@ namespace gr {
     {
       int idx_out = idx_to_start;
       gr_complex temp_out;
+      float temp_f;
 
       int j, k;
+      k = arr_to_start;
 
-      for (j = 0, k = arr_to_start; j < arr_in_chunk; j++, k++) {
-        temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
-        out_vec(idx_out++) = 1.0/temp_out.real();
+      for (j = 0; j < arr_in_chunk; j++) {
+        temp_out = abs(as_scalar(temp_res.row(j) * in_arr.col(k++)));
+//        temp_f = temp_out.real();
+        out_vec(idx_out++) = temp_out.real() / factor_res;
+//        out_vec(idx_out++) = 1.0 / temp_f;
+//        out_vec(idx_out++) = 1.0 / temp_out.real();
       }
     }
 
