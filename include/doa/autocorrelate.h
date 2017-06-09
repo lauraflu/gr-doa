@@ -27,18 +27,20 @@
 #include <doa/api.h>
 #include <gnuradio/block.h>
 
+extern int global_var;
+
 namespace gr {
   namespace doa {
 
     /*!
-     * \brief Determine the correlation matrix of the inputs across antenna elements. 
+     * \brief Determine the correlation matrix of the inputs across antenna elements.
      * \ingroup doa
      *
      * \details
      * This block collects a certain number of samples over each of the input streams
-     * and forms a (number of inputs x snap shot size) matrix. Then, it produces 
-     * a correlation matrix of size (number of inputs x number of inputs) using 
-     * either Forward Averaging method or Forward-Backward Averaging method. 
+     * and forms a (number of inputs x snap shot size) matrix. Then, it produces
+     * a correlation matrix of size (number of inputs x number of inputs) using
+     * either Forward Averaging method or Forward-Backward Averaging method.
      */
     class DOA_API autocorrelate : virtual public gr::block
     {
@@ -47,7 +49,7 @@ namespace gr {
 
       /*!
        * \brief Make an autocorrelate block.
-       * 
+       *
        * \param inputs          Number of input streams
        * \param snapshot_size   Size of each snapshot
        * \param overlap_size    Size of the overlap between successive snapshots

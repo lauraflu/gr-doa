@@ -31,6 +31,7 @@
 #define COPY_MEM false  // Do not copy matrices into separate memory
 #define FIX_SIZE true   // Keep dimensions of matrices constant
 
+int global_var = 20;
 namespace gr {
   namespace doa {
 
