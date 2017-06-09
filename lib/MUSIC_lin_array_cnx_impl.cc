@@ -247,66 +247,66 @@ namespace gr {
         uword keep_idx_max = out_vec.index_max();
         out_vec = 10.0*log10(out_vec/out_vec.max());
 
-        gr_complex Q_temp;
-        fvec exp_vec(d_pspectrum_len);
-        for (int ii = 0; ii < d_pspectrum_len; ii++)
-        {
-          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-          exp_vec(ii) = Q_temp.real();
-          out_vec(ii) = 1.0/Q_temp.real();
-        }
-
-        std::cout << "max expected at index " << exp_vec.index_max() << ": " <<
-        exp_vec.max() << ", got at index " << keep_idx_max << ": " <<
-        keep_out_max << std::endl;
-
-
-        out_vec = 10.0*log10(out_vec/out_vec.max());
-        for (int ii = 0; ii < d_pspectrum_len; ii++)
-        {
-          float angle = ii * 0.1757;
-          std::cout << "angle: " << angle << ", index: " << ii << ", expected: "
-          << exp_vec(ii) << ", got: " << keep_out(ii);
-          std::cout << std::endl;
-          if ((abs(angle - 10) < 0.1) || (abs(angle - 80) < 0.1)) {
-            std::cout << "array: ";
-            for (int k = 0; k < arr_size; k++) {
-              std::cout << d_vii_matrix_trans(ii, k) << " ";
-            }
-            std::cout << std::endl;
-            std::cout << "----------------" << std::endl;
-            std::cout << "matrix" << std::endl;
-
-            for (int k = 0; k < arr_size; k++) {
-              for (int j = 0; j < arr_size; j++) {
-                std::cout << U_N_sq(k, j) << " ";
-              }
-              std::cout << std::endl;
-            }
-            std::cout << "----------------" << std::endl;
-          }
-        }
-
-
-        std::cout << "=============================================" << std::endl;
-        std::cout << "STATS" << std::endl;
-        std::cout << "=============================================" << std::endl;
-
-        fvec err = exp_vec - keep_out;
-        float max_err = err.max();
-        float min_err = err.min();
-        uword idx_max_err = err.index_max();
-        uword idx_min_err = err.index_min();
-        float angle_max_err = idx_max_err * 0.1757;
-        float angle_min_err = idx_min_err * 0.1757;
-        float mean_err = mean(err);
-
-        std::cout << "Max err: " << max_err << " at index " << idx_max_err
-          << ", angle " << angle_max_err << std::endl;
-        std::cout << "Min err: " << min_err << " at index " << idx_min_err
-          << ", angle " << angle_min_err << std::endl;
-        std::cout << "Mean err: " << mean_err << std::endl;
-        std::cout << "=============================================" << std::endl;
+//        gr_complex Q_temp;
+//        fvec exp_vec(d_pspectrum_len);
+//        for (int ii = 0; ii < d_pspectrum_len; ii++)
+//        {
+//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+//          exp_vec(ii) = Q_temp.real();
+//          out_vec(ii) = 1.0/Q_temp.real();
+//        }
+//
+//        std::cout << "max expected at index " << exp_vec.index_max() << ": " <<
+//        exp_vec.max() << ", got at index " << keep_idx_max << ": " <<
+//        keep_out_max << std::endl;
+//
+//
+//        out_vec = 10.0*log10(out_vec/out_vec.max());
+//        for (int ii = 0; ii < d_pspectrum_len; ii++)
+//        {
+//          float angle = ii * 0.1757;
+//          std::cout << "angle: " << angle << ", index: " << ii << ", expected: "
+//          << exp_vec(ii) << ", got: " << keep_out(ii);
+//          std::cout << std::endl;
+//          if ((abs(angle - 10) < 0.1) || (abs(angle - 80) < 0.1)) {
+//            std::cout << "array: ";
+//            for (int k = 0; k < arr_size; k++) {
+//              std::cout << d_vii_matrix_trans(ii, k) << " ";
+//            }
+//            std::cout << std::endl;
+//            std::cout << "----------------" << std::endl;
+//            std::cout << "matrix" << std::endl;
+//
+//            for (int k = 0; k < arr_size; k++) {
+//              for (int j = 0; j < arr_size; j++) {
+//                std::cout << U_N_sq(k, j) << " ";
+//              }
+//              std::cout << std::endl;
+//            }
+//            std::cout << "----------------" << std::endl;
+//          }
+//        }
+//
+//
+//        std::cout << "=============================================" << std::endl;
+//        std::cout << "STATS" << std::endl;
+//        std::cout << "=============================================" << std::endl;
+//
+//        fvec err = exp_vec - keep_out;
+//        float max_err = err.max();
+//        float min_err = err.min();
+//        uword idx_max_err = err.index_max();
+//        uword idx_min_err = err.index_min();
+//        float angle_max_err = idx_max_err * 0.1757;
+//        float angle_min_err = idx_min_err * 0.1757;
+//        float mean_err = mean(err);
+//
+//        std::cout << "Max err: " << max_err << " at index " << idx_max_err
+//          << ", angle " << angle_max_err << std::endl;
+//        std::cout << "Min err: " << min_err << " at index " << idx_min_err
+//          << ", angle " << angle_min_err << std::endl;
+//        std::cout << "Mean err: " << mean_err << std::endl;
+//        std::cout << "=============================================" << std::endl;
       }
 
       // Tell runtime system how many output items we produced.
@@ -436,7 +436,7 @@ namespace gr {
       for (j = 0; j < arr_in_chunk; j++) {
         temp_out = abs(as_scalar(temp_res.row(j) * in_arr.col(k++)));
 //        temp_f = temp_out.real();
-        out_vec(idx_out++) = temp_out.real() / factor_res;
+        out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
 //        out_vec(idx_out++) = 1.0 / temp_f;
 //        out_vec(idx_out++) = 1.0 / temp_out.real();
       }
