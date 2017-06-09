@@ -428,17 +428,13 @@ namespace gr {
     {
       int idx_out = idx_to_start;
       gr_complex temp_out;
-      float temp_f;
 
       int j, k;
       k = arr_to_start;
 
       for (j = 0; j < arr_in_chunk; j++) {
         temp_out = abs(as_scalar(temp_res.row(j) * in_arr.col(k++)));
-//        temp_f = temp_out.real();
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
-//        out_vec(idx_out++) = 1.0 / temp_f;
-//        out_vec(idx_out++) = 1.0 / temp_out.real();
       }
     }
 
