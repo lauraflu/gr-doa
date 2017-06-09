@@ -127,10 +127,10 @@ namespace gr {
 
       void processOutData(
         fvec &out_vec,
-        const int idx_to_start,
+        const int &idx_to_start,
         cx_fmat &temp_res,
         cx_fmat &in_arr,
-        const int arr_to_start);
+        const int &arr_to_start);
 
 
 

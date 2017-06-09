@@ -423,8 +423,8 @@ namespace gr {
     }
 
     void MUSIC_lin_array_cnx_impl::processOutData(
-      fvec &out_vec, const int idx_to_start, cx_fmat &temp_res, cx_fmat &in_arr,
-      const int arr_to_start)
+      fvec &out_vec, const int &idx_to_start, cx_fmat &temp_res, cx_fmat &in_arr,
+      const int &arr_to_start)
     {
       int idx_out = idx_to_start;
       gr_complex temp_out;
