@@ -96,6 +96,9 @@ namespace gr {
         const int n_elems_in
       );
 
+    void prepareOutData(
+      gr_complex *out_data, const int32_t *in_data, const int n_elems_in);
+
       gr_complex prepareAndProcessOutData(
         const int32_t *in_data, const int n_elems_in);
 
