@@ -27,8 +27,6 @@
 #include <doa/api.h>
 #include <gnuradio/block.h>
 
-extern int global_var;
-
 namespace gr {
   namespace doa {
 

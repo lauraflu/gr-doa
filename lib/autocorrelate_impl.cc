@@ -31,7 +31,6 @@
 #define COPY_MEM false  // Do not copy matrices into separate memory
 #define FIX_SIZE true   // Keep dimensions of matrices constant
 
-int global_var = 20;
 namespace gr {
   namespace doa {
 
@@ -109,6 +108,8 @@ namespace gr {
             out_matrix = 0.5*out_matrix+(0.5/d_snapshot_size)*d_J*conj(out_matrix)*d_J;
 
       }
+
+      std::cout << "CRAPAAA" << std::endl;
 
       // Tell runtime system how many input items we consumed on
       // each input stream.
