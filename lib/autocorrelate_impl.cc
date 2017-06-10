@@ -33,6 +33,7 @@
 
 namespace gr {
   namespace doa {
+//    int autocorrelate_impl::total_out_items = 0;
 
     autocorrelate::sptr
     autocorrelate::make(int inputs, int snapshot_size, int overlap_size, int avg_method)
@@ -69,6 +70,8 @@ namespace gr {
      */
     autocorrelate_impl::~autocorrelate_impl()
     {
+      std::cout << "Total output items produced is: " << total_out_items <<
+      std::endl;
     }
 
     void
@@ -112,6 +115,8 @@ namespace gr {
       // Tell runtime system how many input items we consumed on
       // each input stream.
       consume_each (d_nonoverlap_size*output_matrices);
+
+      total_out_items += output_matrices;
 
       // Tell runtime system how many output items we produced.
       return (output_matrices);
