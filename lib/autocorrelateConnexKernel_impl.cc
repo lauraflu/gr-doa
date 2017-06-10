@@ -35,6 +35,7 @@ namespace gr {
     int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
     void autocorrelationKernel(const int nr_loops);
     void initKernel(const int nr_loops);
+    void initIndex();
     void multiplyKernel(void);
 
     autocorrelateConnexKernel::sptr
@@ -100,11 +101,16 @@ namespace gr {
       try {
         autocorrelationKernel(nr_loops);
         initKernel(nr_loops);
+        initIndex();
       } catch (std::string err) {
+        // This should normally not continue, but since we're unit testing are
+        // recreating the same modules before closing the simulator, we have to
+        // do it.
         std::cout << err << std::endl;
       }
 
       executeLocalKernel(connex, "initKernel");
+      connex->readReduction();
 
       int nr_elem_calc = (n_rows * (n_rows + 1)) / 2;
 
@@ -116,6 +122,15 @@ namespace gr {
         idx_val[i].resize(vector_array_size);
         for (int j = 0; j < vector_array_size; j++) {
           idx_val[i][j] = i;
+        }
+      }
+
+      int ls_idx = 900;
+      // Pre-load index in array
+      for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+        for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+            connex->writeDataToArray(idx_val[cnt_row].data(), 1, ls_idx++);
+            connex->writeDataToArray(idx_val[cnt_col].data(), 1, ls_idx++);
         }
       }
 
@@ -171,6 +186,9 @@ namespace gr {
           prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
         }
 
+        // Re-initialize index value for each output item
+        executeLocalKernel(connex, "initIndex");
+        connex->readReduction();
         connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
 
         int32_t *curr_out_data_cnx = out_data_cnx, *past_out_data_cnx;
@@ -180,11 +198,6 @@ namespace gr {
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           // Only elements higher or equal than the main diagonal
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
-            // TODO maybe better with real assignation; this destroys and
-            // creates new elements with this value
-
-            connex->writeDataToArray(idx_val[cnt_row].data(), 1, 900);
-            connex->writeDataToArray(idx_val[cnt_col].data(), 1, 901);
 
             executeLocalKernel(connex, "autocorrelationKernel");
 
@@ -312,11 +325,20 @@ namespace gr {
           R0 = nr_loops;
           R29 = 1;
           R28 = 0;
-
-          R26 = 900;            // From here are loaded the indices for the line
-          R27 = 901;            // and the column
+          R25 = 2;
+          REDUCE(R15);
         )
       END_KERNEL("initKernel");
+    }
+
+    void initIndex(void) {
+      BEGIN_KERNEL("initIndex");
+        EXECUTE_IN_ALL(
+          R26 = 900;            // From here are loaded the indices for the line
+          R27 = 901;            // and the column
+          REDUCE(R15);
+        )
+      END_KERNEL("initIndex");
     }
 
     void autocorrelationKernel(const int nr_loops)
@@ -370,6 +392,11 @@ namespace gr {
             R31 = R31 + R29;
           )
         END_REPEAT;
+
+        EXECUTE_IN_ALL(           // Prepare index for the next chunk
+          R26 = R26 + R25;        // += 2
+          R27 = R27 + R25;
+        )
       END_KERNEL("autocorrelationKernel");
     }
 
