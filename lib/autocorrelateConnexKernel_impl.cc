@@ -183,8 +183,8 @@ namespace gr {
             // TODO maybe better with real assignation; this destroys and
             // creates new elements with this value
 
-            connex->writeDataToArray(idx_val[cnt_row].data(), 1, 1022);
-            connex->writeDataToArray(idx_val[cnt_col].data(), 1, 1023);
+            connex->writeDataToArray(idx_val[cnt_row].data(), 1, 900);
+            connex->writeDataToArray(idx_val[cnt_col].data(), 1, 901);
 
             executeLocalKernel(connex, "autocorrelationKernel");
 
@@ -312,6 +312,9 @@ namespace gr {
           R0 = nr_loops;
           R29 = 1;
           R28 = 0;
+
+          R26 = 900;            // From here are loaded the indices for the line
+          R27 = 901;            // and the column
         )
       END_KERNEL("initKernel");
     }
@@ -321,8 +324,8 @@ namespace gr {
       BEGIN_KERNEL("autocorrelationKernel");
         EXECUTE_IN_ALL(
           // TODO what's the right way to put the indices in LS to be read?
-          R30 = LS[1022];         // line i
-          R31 = LS[1023];         // col j
+          R30 = LS[R26];         // line i
+          R31 = LS[R27];         // col j
 
           // keep indices from where to load the lines and columns
           R30 = R30 * R0;         // go to the LS with line i
