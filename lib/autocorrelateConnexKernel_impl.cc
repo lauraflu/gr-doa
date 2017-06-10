@@ -34,6 +34,7 @@ namespace gr {
 
     int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
     void autocorrelationKernel(const int nr_loops);
+    void initKernel(const int nr_loops);
     void multiplyKernel(void);
 
     autocorrelateConnexKernel::sptr
@@ -98,9 +99,12 @@ namespace gr {
 
       try {
         autocorrelationKernel(nr_loops);
+        initKernel(nr_loops);
       } catch (std::string err) {
         std::cout << err << std::endl;
       }
+
+      executeLocalKernel(connex, "initKernel");
 
       int nr_elem_calc = (n_rows * (n_rows + 1)) / 2;
 
@@ -182,8 +186,7 @@ namespace gr {
             connex->writeDataToArray(idx_val[cnt_row].data(), 1, 1022);
             connex->writeDataToArray(idx_val[cnt_col].data(), 1, 1023);
 
-//            int result = executeLocalKernel(connex, autocorrelation_kernel);
-            executeLocalKernel(connex, autocorrelation_kernel);
+            executeLocalKernel(connex, "autocorrelationKernel");
 
             // Process past data for all but the first element
             if (!(cnt_row == 0 && cnt_col == 0)) {
@@ -302,15 +305,21 @@ namespace gr {
       return 0;
     }
 
-    void autocorrelationKernel(const int nr_loops)
-    {
-      BEGIN_KERNEL("autocorrelationKernel");
+    void initKernel(const int nr_loops) {
+      BEGIN_KERNEL("initKernel");
         EXECUTE_IN_ALL(
           // Some constants
           R0 = nr_loops;
           R29 = 1;
           R28 = 0;
+        )
+      END_KERNEL("initKernel");
+    }
 
+    void autocorrelationKernel(const int nr_loops)
+    {
+      BEGIN_KERNEL("autocorrelationKernel");
+        EXECUTE_IN_ALL(
           // TODO what's the right way to put the indices in LS to be read?
           R30 = LS[1022];         // line i
           R31 = LS[1023];         // col j

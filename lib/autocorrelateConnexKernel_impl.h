@@ -46,7 +46,6 @@ namespace gr {
       ConnexMachine *connex;
       uint16_t *in_data_cnx;
       int32_t *out_data_cnx;
-      std::string autocorrelation_kernel = "autocorrelationKernel";
 
       std::vector<std::vector<uint16_t>> idx_val;
       std::vector<std::vector<gr_complex>> refl_matrix;
