@@ -73,8 +73,6 @@ namespace gr {
       , d_snapshot_size(snapshot_size)
       , d_overlap_size(overlap_size)
       , d_avg_method(avg_method)
-      , n_rows(d_num_inputs)
-      , n_cols(d_snapshot_size)
     {
       try {
         connex = new ConnexMachine(distributionFIFO,
@@ -85,6 +83,9 @@ namespace gr {
         std::cout << err << std::endl;
       }
 
+      n_rows = d_num_inputs;
+      n_cols = d_snapshot_size;
+
       factor_mult = 1 << 13;
       factor_res = 1 << 10;
 
@@ -93,10 +94,12 @@ namespace gr {
       n_elems_out = n_rows * n_rows;
       n_elems_out_c = n_elems_out * 2;
       n_ls_busy = n_elems_c / vector_array_size;
-      // How many reductions will be performed on Connex
-      n_red_per_elem = ((n_cols * 2) / vector_array_size) * 2;
 
+      // Divide the number of complex elements in a col by the vector array size
       const int nr_loops = (n_cols * 2) / vector_array_size;
+      // How many reductions will be performed on Connex = 2 per loop
+      n_red_per_elem = nr_loops * 2;
+
 
       try {
         autocorrelationKernel(nr_loops);
@@ -110,7 +113,6 @@ namespace gr {
       }
 
       executeLocalKernel(connex, "initKernel");
-      connex->readReduction();
 
       int nr_elem_calc = (n_rows * (n_rows + 1)) / 2;
 
@@ -188,7 +190,6 @@ namespace gr {
 
         // Re-initialize index value for each output item
         executeLocalKernel(connex, "initIndex");
-        connex->readReduction();
         connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
 
         int32_t *curr_out_data_cnx = out_data_cnx, *past_out_data_cnx;
@@ -312,6 +313,7 @@ namespace gr {
       try {
         connex->executeKernel(kernel_name.c_str());
       } catch(std::string e) {
+        std:: cout << "Exception in kernel execution!" << std::endl;
         std::cout << e << std::endl;
         return -1;
       }
@@ -326,7 +328,6 @@ namespace gr {
           R29 = 1;
           R28 = 0;
           R25 = 2;
-          REDUCE(R15);
         )
       END_KERNEL("initKernel");
     }
@@ -336,7 +337,6 @@ namespace gr {
         EXECUTE_IN_ALL(
           R26 = 900;            // From here are loaded the indices for the line
           R27 = 901;            // and the column
-          REDUCE(R15);
         )
       END_KERNEL("initIndex");
     }
