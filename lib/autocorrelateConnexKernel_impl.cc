@@ -114,11 +114,12 @@ namespace gr {
 
       executeLocalKernel(connex, "initKernel");
 
+      // Allocate memory for the data to/from Connex
       int nr_elem_calc = (n_rows * (n_rows + 1)) / 2;
-
       in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
       out_data_cnx = static_cast<int32_t *>(malloc(nr_elem_calc * n_red_per_elem * sizeof(int32_t)));
 
+      // Fill the index arrays with values
       idx_val.resize(n_rows);
       for (int i = 0; i < n_rows; i++) {
         idx_val[i].resize(vector_array_size);
@@ -127,8 +128,8 @@ namespace gr {
         }
       }
 
-      int ls_idx = 900;
-      // Pre-load index in array
+      // Load the index values in the ConnexArray
+      int ls_idx = 600;
       for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
         for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
             connex->writeDataToArray(idx_val[cnt_row].data(), 1, ls_idx++);
@@ -155,6 +156,8 @@ namespace gr {
       delete connex;
       free(in_data_cnx);
       free(out_data_cnx);
+      std::cout << "Total output items produced is: " << total_out_items <<
+      std::endl;
     }
 
     void
@@ -262,6 +265,8 @@ namespace gr {
       // each input stream.
       consume_each (d_nonoverlap_size*output_matrices);
 
+      total_out_items += output_matrices;
+
       // Tell runtime system how many output items we produced.
       return (output_matrices);
     }
@@ -335,8 +340,8 @@ namespace gr {
     void initIndex(void) {
       BEGIN_KERNEL("initIndex");
         EXECUTE_IN_ALL(
-          R26 = 900;            // From here are loaded the indices for the line
-          R27 = 901;            // and the column
+          R26 = 600;            // From here are loaded the indices for the line
+          R27 = 601;            // and the column
         )
       END_KERNEL("initIndex");
     }
