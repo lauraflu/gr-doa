@@ -116,8 +116,7 @@ namespace gr {
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
-            (malloc(nr_chunks * vector_array_size * sizeof(int32_t)));
-//            (malloc(nr_elem_calc * nr_chunks * sizeof(int32_t)));
+            (malloc(2 * nr_elem_calc * nr_chunks * sizeof(int32_t)));
 
         if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
           std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
