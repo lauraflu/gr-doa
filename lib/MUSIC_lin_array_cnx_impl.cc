@@ -238,7 +238,7 @@ namespace gr {
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(arr_curr_cnx, d_vii_matrix_trans, arr_per_chunk, idx_curr_chunk);
+        prepareInArrConnex(arr_curr_cnx, d_vii_matrix, arr_per_chunk, idx_curr_chunk);
         prepareInMatConnex(mat_cnx, U_N_sq);
 
         connex->writeDataToArray(mat_cnx, 1, 900);
@@ -263,7 +263,7 @@ namespace gr {
             arr_next_cnx = arr_curr_cnx + process_at_once * vector_array_size;
             idx_next_chunk = idx_curr_chunk + arr_per_chunk;
 
-            prepareInArrConnex(arr_next_cnx, d_vii_matrix_trans, arr_per_chunk, idx_next_chunk);
+            prepareInArrConnex(arr_next_cnx, d_vii_matrix, arr_per_chunk, idx_next_chunk);
           }
 
           // Process past data for all but the first chunk
@@ -315,11 +315,11 @@ namespace gr {
 
       int idx_cnx = 0;
 
-      for (int i = arr_to_start; i < arr_to_start + arr_to_prepare; i++) { // iterate through arrays
+      for (int j = arr_to_start; j < arr_to_start + arr_to_prepare; j++) { // iterate through arrays
         // Each array has to be multiplied with each column of the matrix, so we
         // store each array a number of arr_size consecutively
         for (int k = 0; k < arr_size; k++) {
-          for (int j = 0; j < arr_size; j++) { // iterate through elements of array
+          for (int i = 0; i < arr_size; i++) { // iterate through elements of array
             out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
           }
