@@ -73,7 +73,16 @@ namespace gr {
         mat_size = arr_size * arr_size;
         arr_size_c = arr_size * 2;
         mat_size_c = mat_size * 2;
-        arr_per_chunk = process_at_once * (vector_array_size / mat_size_c);
+
+        if (arr_process_at_once > nr_arrays) {
+          std::cout << "There are more arrays in a processing than arrays available!" << std::endl;
+          std::cout << "Choose a number smaller than " << nr_arrays << std::endl;
+          return;
+        }
+
+        int arrays_per_LS = vector_array_size / mat_size_c;
+        process_at_once = arr_process_at_once / arrays_per_LS;
+        arr_per_chunk = process_at_once * arrays_per_LS;
         nr_chunks = nr_arrays / arr_per_chunk;
         // By calculated element we mean one element from an output array that
         // is the result of an arr * mat multiplication

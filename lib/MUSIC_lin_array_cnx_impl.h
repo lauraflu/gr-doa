@@ -60,8 +60,10 @@ namespace gr {
       int arr_size, mat_size;
       int arr_size_c, mat_size_c;
 
-      // How many chunks are processed at once on the Connexarray
-      const int process_at_once = 1024;
+      // How many arrays are processed at once on the Connexarray
+      const int arr_process_at_once = 1024;
+      // How many LSs are used in a kernel execution
+      int process_at_once;
 
       // The total number of the arrays that will be multiplied by the same
       // matrix
