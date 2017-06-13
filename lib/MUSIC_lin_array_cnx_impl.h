@@ -51,6 +51,8 @@ namespace gr {
        * CONNEX KERNEL RELATED
        *===================================================================*/
 
+      int nout_items_total = 0;
+
       ConnexMachine *connex;
 
       // Variables for easier management of chunks and sizes
@@ -59,7 +61,7 @@ namespace gr {
       int arr_size_c, mat_size_c;
 
       // How many chunks are processed at once on the Connexarray
-      const int process_at_once = 1;
+      const int process_at_once = 1024;
 
       // The total number of the arrays that will be multiplied by the same
       // matrix

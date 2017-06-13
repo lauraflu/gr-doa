@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /*
- * Copyright 2016 
+ * Copyright 2016
  * Srikanth Pagadarai <srikanth.pagadarai@gmail.com>
  * Travis F. Collins <travisfcollins@gmail.com>
  *
@@ -44,6 +44,7 @@ namespace gr {
       cx_fmat d_vii_matrix_trans;
 
      public:
+      int nout_items_total = 0;
       MUSIC_lin_array_impl(float norm_spacing, int num_targets, int inputs, int pspectrum_len);
       ~MUSIC_lin_array_impl();
 

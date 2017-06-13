@@ -163,6 +163,8 @@ namespace gr {
      */
     MUSIC_lin_array_cnx_impl::~MUSIC_lin_array_cnx_impl()
     {
+      std::cout << "Total output items produced: " << nout_items_total << std::endl;
+
       delete connex;
       free(in0_i);
       free(in1_i);
@@ -281,6 +283,8 @@ namespace gr {
         out_vec = 10.0 * log10(out_vec/out_vec.max());
 
       }
+
+      nout_items_total += noutput_items;
 
       // Tell runtime system how many output items we produced.
       return noutput_items;

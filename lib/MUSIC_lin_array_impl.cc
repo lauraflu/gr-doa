@@ -91,6 +91,7 @@ namespace gr {
      */
     MUSIC_lin_array_impl::~MUSIC_lin_array_impl()
     {
+      std::cout << "Total output items produced: " << nout_items_total << std::endl;
     }
 
     // array manifold vector generating function
@@ -141,6 +142,8 @@ bool ok = true;
           out_vec = 10.0*log10(out_vec/out_vec.max());
 
       }
+
+      nout_items_total += noutput_items;
 
       // Tell runtime system how many output items we produced.
       return noutput_items;
