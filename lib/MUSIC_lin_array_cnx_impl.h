@@ -44,6 +44,7 @@ namespace gr {
       fcolvec d_array_loc;
       cx_fmat d_vii_matrix;
       cx_fmat d_vii_matrix_trans;
+      cx_fmat d_vii_matrix_conj;
 
       cx_fmat res_temp;
 

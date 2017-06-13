@@ -155,7 +155,7 @@ namespace gr {
         // form array response matrix
         cx_fcolvec vii_temp(d_num_ant_ele, fill::zeros);
         d_vii_matrix = cx_fmat(d_num_ant_ele,d_pspectrum_len);
-        d_vii_matrix_trans = cx_fmat(d_pspectrum_len,d_num_ant_ele);
+//        d_vii_matrix_trans = cx_fmat(d_pspectrum_len,d_num_ant_ele);
         for (int ii = 0; ii < d_pspectrum_len; ii++)
         {
           // generate array manifold vector for each theta
@@ -164,7 +164,8 @@ namespace gr {
           d_vii_matrix.col(ii) = vii_temp;
         }
         // save transposed copy
-        d_vii_matrix_trans = trans(d_vii_matrix);
+        d_vii_matrix_conj = conj(d_vii_matrix);
+//        d_vii_matrix_trans = trans(d_vii_matrix);
     }
 
     /*
@@ -238,7 +239,7 @@ namespace gr {
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(arr_curr_cnx, d_vii_matrix, arr_per_chunk, idx_curr_chunk);
+        prepareInArrConnex(arr_curr_cnx, d_vii_matrix_conj, arr_per_chunk, idx_curr_chunk);
         prepareInMatConnex(mat_cnx, U_N_sq);
 
         connex->writeDataToArray(mat_cnx, 1, 900);
@@ -263,7 +264,7 @@ namespace gr {
             arr_next_cnx = arr_curr_cnx + process_at_once * vector_array_size;
             idx_next_chunk = idx_curr_chunk + arr_per_chunk;
 
-            prepareInArrConnex(arr_next_cnx, d_vii_matrix, arr_per_chunk, idx_next_chunk);
+            prepareInArrConnex(arr_next_cnx, d_vii_matrix_conj, arr_per_chunk, idx_next_chunk);
           }
 
           // Process past data for all but the first chunk
