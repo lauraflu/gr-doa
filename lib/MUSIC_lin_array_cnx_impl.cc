@@ -73,8 +73,8 @@ namespace gr {
         mat_size = arr_size * arr_size;
         arr_size_c = arr_size * 2;
         mat_size_c = mat_size * 2;
-        arr_in_chunk = process_at_once * (vector_array_size / mat_size_c);
-        nr_chunks = nr_arrays / arr_in_chunk;
+        arr_per_chunk = process_at_once * (vector_array_size / mat_size_c);
+        nr_chunks = nr_arrays / arr_per_chunk;
         // By calculated element we mean one element from an output array that
         // is the result of an arr * mat multiplication
         nr_elem_calc = process_at_once * (vector_array_size / arr_size_c);
@@ -100,9 +100,9 @@ namespace gr {
 
         // Create the kernel
         try {
-          multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
           init_kernel(size_of_block);
           init_index();
+          multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
         } catch (std::string e) {
           std::cout << e << std::endl;
         }
@@ -116,7 +116,6 @@ namespace gr {
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
-//            (malloc(nr_chunks * vector_array_size * sizeof(int32_t)));
             (malloc(nr_chunks * nr_elem_calc_c * sizeof(int32_t)));
 
         if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
@@ -124,7 +123,7 @@ namespace gr {
         }
 
         // Form matrix that will store the temporary results in a chunk
-        temp_chunk_results = cx_fmat(arr_in_chunk, arr_size, fill::zeros);
+        res_temp = cx_fmat(arr_per_chunk, arr_size, fill::zeros);
 
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
@@ -215,30 +214,33 @@ namespace gr {
         // same matrix U_N_sq and we process the matrix multiplications in chunks
 
         // Pointers to the current and the next input chunks for the CnxArr
-        uint16_t *in_arr_curr, *in_arr_next, *in_mat_cnx;
+        uint16_t *arr_curr_cnx, *arr_next_cnx, *mat_cnx;
 
         // Prepare the first chunk
-        in_arr_curr = in0_i;
-        in_mat_cnx = in1_i;
+        arr_curr_cnx = in0_i;
+        mat_cnx = in1_i;
 
         // Pointers to the current and past result chunks
-        int32_t *res_curr_chunk, *res_past_chunk = NULL;
+        int32_t *res_curr_cnx = NULL, *res_past_cnx = NULL;
 
         // Indices of next, past and current array chunks in matrix format
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
-        prepareInMatConnex(in_mat_cnx, U_N_sq);
+        prepareInArrConnex(arr_curr_cnx, d_vii_matrix_trans, arr_per_chunk, idx_curr_chunk);
+        prepareInMatConnex(mat_cnx, U_N_sq);
 
-        connex->writeDataToArray(in_mat_cnx, 1, 511);
+        connex->writeDataToArray(mat_cnx, 1, 900);
+
+        int last_chunk = nr_chunks - 1;
+        int ls_to_write = 0;
+
+        executeLocalKernel(connex, "initIndex");
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
-          res_curr_chunk = &res_mult[cnt_chunk * nr_elem_calc_c];
+          res_curr_cnx = &res_mult[cnt_chunk * nr_elem_calc_c];
 
-          executeLocalKernel(connex, "initIndex");
-
-          connex->writeDataToArray(in_arr_curr, process_at_once, 0);
+          connex->writeDataToArray(arr_curr_cnx, process_at_once, ls_to_write);
 
           int res = executeLocalKernel(connex, "multiplyArrMatKernel");
           if (res) {
@@ -246,36 +248,35 @@ namespace gr {
           }
 
           // Prepare future data for all but the last chunk
-          if (cnt_chunk != nr_chunks - 1) {
-            in_arr_next = in_arr_curr + process_at_once * vector_array_size;
-            idx_next_chunk = idx_curr_chunk + arr_in_chunk;
+          if (cnt_chunk != last_chunk) {
+            arr_next_cnx = arr_curr_cnx + process_at_once * vector_array_size;
+            idx_next_chunk = idx_curr_chunk + arr_per_chunk;
 
-            prepareInArrConnex(in_arr_next, d_vii_matrix_trans, arr_in_chunk,
-              idx_next_chunk);
+            prepareInArrConnex(arr_next_cnx, d_vii_matrix_trans, arr_per_chunk, idx_next_chunk);
           }
 
           // Process past data for all but the first chunk
           if (cnt_chunk != 0) {
-            idx_past_chunk = idx_curr_chunk - arr_in_chunk;
-            prepareOutDataConnex(temp_chunk_results, res_past_chunk);
-            processOutData(out_vec, cnt_chunk * arr_in_chunk,
-              temp_chunk_results, d_vii_matrix, idx_past_chunk);
+            int idx_past_results = (cnt_chunk - 1) * arr_per_chunk;
+
+            prepareOutDataConnex(res_temp, res_past_cnx);
+            processOutData(out_vec, idx_past_results, res_temp, d_vii_matrix, idx_past_chunk);
           }
 
           // 2 * ---> complex elements, so we have real *and* imag parts
-          connex->readMultiReduction(nr_elem_calc_c, res_curr_chunk);
+          connex->readMultiReduction(nr_elem_calc_c, res_curr_cnx);
+
           // Increment for next chunk
-          in_arr_curr = in_arr_next;
+          arr_curr_cnx = arr_next_cnx;
           idx_past_chunk = idx_curr_chunk;
           idx_curr_chunk = idx_next_chunk;
-          res_past_chunk = res_curr_chunk;
+          res_past_cnx = res_curr_cnx;
+          ls_to_write += process_at_once;
         } // end loop for each chunk
 
         // Results for the last chunk
-        idx_past_chunk = idx_curr_chunk - arr_in_chunk;
-        prepareOutDataConnex(temp_chunk_results, res_past_chunk);
-        processOutData(out_vec, (nr_chunks - 1) * arr_in_chunk,
-          temp_chunk_results, d_vii_matrix, idx_past_chunk);
+        prepareOutDataConnex(res_temp, res_past_cnx);
+        processOutData(out_vec, last_chunk * arr_per_chunk, res_temp, d_vii_matrix, idx_past_chunk);
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
 
@@ -340,7 +341,7 @@ namespace gr {
 
       // Resultig array of a multiplication is stored column-wise for faster
       // access, since Armadillo matrices are stored column-wise
-      for (int i = 0; i < arr_in_chunk; i++) {
+      for (int i = 0; i < arr_per_chunk; i++) {
         for (int j = 0; j < arr_size; j++) {
           temp0 = (static_cast<float>(raw_out_data[cnt_cnx++]));
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
@@ -359,7 +360,7 @@ namespace gr {
 
       int j, k;
 
-      for (j = 0, k = arr_to_start; j < arr_in_chunk; j++, k++) {
+      for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
@@ -386,7 +387,7 @@ namespace gr {
       BEGIN_KERNEL("initKernel");
         EXECUTE_IN_ALL(
           R25 = 0;
-          R26 = 511;
+          R26 = 900;
           R30 = 1;
           R31 = 0;
           R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
@@ -416,8 +417,6 @@ namespace gr {
             R29 = INDEX;          // Used later to select PEs for reduction
             R27 = size_of_block;  // Used to select blocks for reduction
 
-            LS[1000] = R1;
-
             R3 = R1 * R2;         // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
 
@@ -446,8 +445,7 @@ namespace gr {
 
           REPEAT_X_TIMES(blocks_to_reduce);
             EXECUTE_IN_ALL(
-              R7 = (R29 < R27);   // Select only blocks of 8 PEs at a time by
-                                  // checking that the index is < k * 8
+              R7 = (R29 < R27);   // Select only blocks of PEs at a time
             )
             EXECUTE_WHERE_LT(
               R29 = 129;          // A random number > 128 so these PEs won't be
@@ -456,7 +454,7 @@ namespace gr {
               REDUCE(R4);         // Imaginary part
             )
             EXECUTE_IN_ALL(
-              R27 = R27 + R28;    // Go to the next block of 8 PEs
+              R27 = R27 + R28;    // Go to the next block of PEs
             )
           END_REPEAT;
 

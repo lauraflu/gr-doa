@@ -45,7 +45,7 @@ namespace gr {
       cx_fmat d_vii_matrix;
       cx_fmat d_vii_matrix_trans;
 
-      cx_fmat temp_chunk_results;
+      cx_fmat res_temp;
 
       /*====================================================================
        * CONNEX KERNEL RELATED
@@ -59,7 +59,7 @@ namespace gr {
       int arr_size_c, mat_size_c;
 
       // How many chunks are processed at once on the Connexarray
-      const int process_at_once = 1;
+      const int process_at_once = 8;
 
       // The total number of the arrays that will be multiplied by the same
       // matrix
@@ -69,7 +69,7 @@ namespace gr {
       // kernels.
       // How many of the total number of the arrays can be processed in an
       // iteration on the ConnexArray kernel
-      int arr_in_chunk;
+      int arr_per_chunk;
       int nr_chunks;
       int nr_elem_calc;
       int nr_elem_calc_c;
