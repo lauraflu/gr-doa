@@ -334,8 +334,8 @@ namespace gr {
       // access, since Armadillo matrices are stored column-wise
       for (int i = 0; i < arr_in_chunk; i++) {
         for (int j = 0; j < arr_size; j++) {
-          temp0 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
-          temp1 = (static_cast<float>(raw_out_data[cnt_cnx++])) / factor_res;
+          temp0 = (static_cast<float>(raw_out_data[cnt_cnx++]));
+          temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
 
           out_data(i, j) = gr_complex(temp0, temp1);
         }
@@ -353,7 +353,7 @@ namespace gr {
 
       for (j = 0, k = arr_to_start; j < arr_in_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
-        out_vec(idx_out++) = 1.0/temp_out.real();
+        out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
     }
 
