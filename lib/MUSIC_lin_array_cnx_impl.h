@@ -72,7 +72,6 @@ namespace gr {
       // iteration on the ConnexArray kernel
       int arr_in_chunk;
       int nr_chunks;
-      int nr_elem_chunk;
       int nr_elem_calc;
 
       // Pointers to data for/from the ConnexArray
@@ -83,9 +82,15 @@ namespace gr {
       int factor_mult1, factor_mult2, factor_res;
 
       // Executes the kernel
-      int executeMultiplyArrMat(ConnexMachine *connex);
+      int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
 
-      // Defines the kernel
+      // Defines the init kernel
+      void init_kernel(int size_of_block);
+
+      // Defines the init kernel
+      void init_index(void);
+
+      // Defines the processing kernel
       void multiply_kernel(
         int process_at_once,
         int size_of_block,

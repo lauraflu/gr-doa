@@ -76,7 +76,8 @@ namespace gr {
         nr_arrays_elems = nr_arrays * arr_size;
         arr_in_chunk = (process_at_once * vector_array_size) / mat_size_c;
         nr_chunks = nr_arrays / arr_in_chunk;
-        nr_elem_chunk = arr_in_chunk * arr_size;
+        // By calculated element we mean one element from an output array that
+        // is the result of an arr * mat multiplication
         nr_elem_calc = process_at_once * vector_array_size / arr_size_c;
 
         // Create ConnexMachine instance
@@ -89,19 +90,24 @@ namespace gr {
           std::cout << err << std::endl;
         }
 
-        factor_mult1 = 1 << 13;
+        factor_mult1 = 1 << 15;
         factor_mult2 = 1 << 15;
-        factor_res = 1 << 12;
+        factor_res = 1 << 15;
 
+        // Number of blocks to reduce in a single LS
         const int blocks_to_reduce = vector_array_size / arr_size_c;
         const int size_of_block = arr_size_c;
 
         // Create the kernel
         try {
           multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
+          init_kernel(size_of_block);
+          init_index();
         } catch (std::string e) {
           std::cout << e << std::endl;
         }
+
+        executeLocalKernel(connex, "initKernel");
 
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
@@ -230,9 +236,11 @@ namespace gr {
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
           res_curr_chunk = &res_mult[cnt_chunk * vector_array_size];
 
+          executeLocalKernel(connex, "initIndex");
+
           connex->writeDataToArray(in_arr_curr, process_at_once, 0);
 
-          int res = executeMultiplyArrMat(connex);
+          int res = executeLocalKernel(connex, "multiplyArrMatKernel");
           if (res) {
             return noutput_items;
           }
@@ -360,10 +368,11 @@ namespace gr {
     /*===================================================================
      * Define ConnexArray kernels that will be used in the worker
      *===================================================================*/
-    int MUSIC_lin_array_cnx_impl::executeMultiplyArrMat(ConnexMachine *connex)
+    int MUSIC_lin_array_cnx_impl::executeLocalKernel(ConnexMachine *connex,
+      std::string kernel_name)
     {
       try {
-        connex->executeKernel("multiply_arr_mat");
+        connex->executeKernel(kernel_name.c_str());
       } catch (std::string e) {
         std::cout << e << std::endl;
         return -1;
@@ -371,10 +380,10 @@ namespace gr {
       return 0;
     }
 
-    void MUSIC_lin_array_cnx_impl::multiply_kernel(
-      int process_at_once, int size_of_block, int blocks_to_reduce)
+
+    void MUSIC_lin_array_cnx_impl::init_kernel(int size_of_block)
     {
-      BEGIN_KERNEL("multiply_arr_mat");
+      BEGIN_KERNEL("initKernel");
         EXECUTE_IN_ALL(
           R25 = 0;
           R26 = 511;
@@ -383,7 +392,22 @@ namespace gr {
           R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
                                 // on which reduction is performed at once
         )
+      END_KERNEL("initKernel");
+    }
 
+    void MUSIC_lin_array_cnx_impl::init_index(void)
+    {
+      BEGIN_KERNEL("initIndex");
+        EXECUTE_IN_ALL(
+          R25 = 0;
+        )
+      END_KERNEL("initIndex");
+    }
+
+    void MUSIC_lin_array_cnx_impl::multiply_kernel(
+      int process_at_once, int size_of_block, int blocks_to_reduce)
+    {
+      BEGIN_KERNEL("multiplyArrMatKernel");
         for (int i = 0; i < process_at_once; i++) {
           EXECUTE_IN_ALL(
             R1 = LS[R25];           // z1 = a1 + j * b1
@@ -440,10 +464,8 @@ namespace gr {
             R25 = R25 + R30;      // Go to the next LS
           )
         }
-
-      END_KERNEL("multiply_arr_mat");
+      END_KERNEL("multiplyArrMatKernel");
     }
-
 
   } /* namespace doa */
 } /* namespace gr */
