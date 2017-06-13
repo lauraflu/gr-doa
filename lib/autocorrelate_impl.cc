@@ -109,8 +109,6 @@ namespace gr {
 
       }
 
-      std::cout << "CRAPAAA" << std::endl;
-
       // Tell runtime system how many input items we consumed on
       // each input stream.
       consume_each (d_nonoverlap_size*output_matrices);
