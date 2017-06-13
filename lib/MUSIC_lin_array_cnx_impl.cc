@@ -73,12 +73,12 @@ namespace gr {
         mat_size = arr_size * arr_size;
         arr_size_c = arr_size * 2;
         mat_size_c = mat_size * 2;
-        nr_arrays_elems = nr_arrays * arr_size;
-        arr_in_chunk = (process_at_once * vector_array_size) / mat_size_c;
+        arr_in_chunk = process_at_once * (vector_array_size / mat_size_c);
         nr_chunks = nr_arrays / arr_in_chunk;
         // By calculated element we mean one element from an output array that
         // is the result of an arr * mat multiplication
-        nr_elem_calc = process_at_once * vector_array_size / arr_size_c;
+        nr_elem_calc = process_at_once * (vector_array_size / arr_size_c);
+        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
 
         // Create ConnexMachine instance
         try {
@@ -116,7 +116,8 @@ namespace gr {
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
-            (malloc(2 * nr_elem_calc * nr_chunks * sizeof(int32_t)));
+//            (malloc(nr_chunks * vector_array_size * sizeof(int32_t)));
+            (malloc(nr_chunks * nr_elem_calc_c * sizeof(int32_t)));
 
         if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
           std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
@@ -230,10 +231,10 @@ namespace gr {
         prepareInArrConnex(in_arr_curr, d_vii_matrix_trans, arr_in_chunk, idx_curr_chunk);
         prepareInMatConnex(in_mat_cnx, U_N_sq);
 
-        connex->writeDataToArray(in_mat_cnx, process_at_once, 511);
+        connex->writeDataToArray(in_mat_cnx, 1, 511);
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
-          res_curr_chunk = &res_mult[cnt_chunk * vector_array_size];
+          res_curr_chunk = &res_mult[cnt_chunk * nr_elem_calc_c];
 
           executeLocalKernel(connex, "initIndex");
 
@@ -262,7 +263,7 @@ namespace gr {
           }
 
           // 2 * ---> complex elements, so we have real *and* imag parts
-          connex->readMultiReduction(2 * nr_elem_calc, res_curr_chunk);
+          connex->readMultiReduction(nr_elem_calc_c, res_curr_chunk);
           // Increment for next chunk
           in_arr_curr = in_arr_next;
           idx_past_chunk = idx_curr_chunk;
@@ -390,6 +391,7 @@ namespace gr {
           R31 = 0;
           R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
                                 // on which reduction is performed at once
+          R9 = INDEX;           // Select only the odd PEs
         )
       END_KERNEL("initKernel");
     }
@@ -399,6 +401,7 @@ namespace gr {
       BEGIN_KERNEL("initIndex");
         EXECUTE_IN_ALL(
           R25 = 0;
+          R2 = LS[R26];           // load input matrix
         )
       END_KERNEL("initIndex");
     }
@@ -409,10 +412,9 @@ namespace gr {
       BEGIN_KERNEL("multiplyArrMatKernel");
         for (int i = 0; i < process_at_once; i++) {
           EXECUTE_IN_ALL(
-            R1 = LS[R25];           // z1 = a1 + j * b1
-            R2 = LS[R26];           // z2 = a2 + j * b2
+            R1 = LS[R25];         // load input array
             R29 = INDEX;          // Used later to select PEs for reduction
-            R27 = size_of_block;  // Used to select blocks of ARR_SIZE_C for reduction
+            R27 = size_of_block;  // Used to select blocks for reduction
 
             LS[1000] = R1;
 
@@ -431,9 +433,8 @@ namespace gr {
             R5 = R1 * R5;         // b1 * a2
             R5 = MULT_HIGH();
 
-            R9 = INDEX;           // Select only the odd PEs
-            R9 = R9 & R30;
-            R7 = (R9 == R30);
+            R10 = R9 & R30;
+            R7 = (R10 == R30);
           )
 
           EXECUTE_WHERE_EQ(       // Only in the odd PEs

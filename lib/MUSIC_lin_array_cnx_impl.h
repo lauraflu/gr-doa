@@ -64,7 +64,6 @@ namespace gr {
       // The total number of the arrays that will be multiplied by the same
       // matrix
       int nr_arrays;
-      int nr_arrays_elems;
 
       // The total number of multiplications will be processed in chunks on the
       // kernels.
@@ -73,6 +72,7 @@ namespace gr {
       int arr_in_chunk;
       int nr_chunks;
       int nr_elem_calc;
+      int nr_elem_calc_c;
 
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
