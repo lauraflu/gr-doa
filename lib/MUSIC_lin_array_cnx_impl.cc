@@ -230,24 +230,17 @@ namespace gr {
         // same matrix U_N_sq and we process the matrix multiplications in chunks
 
         // Pointers to the current and the next input chunks for the CnxArr
-        uint16_t *arr_curr_cnx, *arr_next_cnx, *mat_cnx;
-
-        // Prepare the first chunk
-        arr_curr_cnx = in0_i;
-        mat_cnx = in1_i;
-
-        // Pointers to the current and past result chunks
-        int32_t *res_curr_cnx = NULL, *res_past_cnx = NULL;
+        uint16_t *arr_curr_cnx = in0_i, *mat_cnx = in1_i;
+        int32_t *res_curr_cnx = NULL;
 
         // Indices of next, past and current array chunks in matrix format
-        int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
+        int idx_curr_chunk = 0;
 
-        // Prepare current matrix for storage in Connex
+        // Prepare & write matrix for storage in Connex
         prepareInMatConnex(mat_cnx, U_N_sq);
-
         connex->writeDataToArray(mat_cnx, 1, 900);
 
-        int last_chunk = nr_chunks - 1;
+        // Where to write the input array
         int ls_to_write = 0;
 
         executeLocalKernel(connex, "initIndex");
@@ -258,33 +251,19 @@ namespace gr {
           connex->writeDataToArray(arr_curr_cnx, process_at_once, ls_to_write);
 
           int res = executeLocalKernel(connex, "multiplyArrMatKernel");
-          if (res) {
-            return noutput_items;
-          }
 
-          // Process past data for all but the first chunk
-          if (cnt_chunk != 0) {
-            int idx_past_results = (cnt_chunk - 1) * arr_per_chunk;
-
-            prepareOutDataConnex(res_temp, res_past_cnx);
-            processOutData(out_vec, idx_past_results, res_temp, d_vii_matrix, idx_past_chunk);
-          }
-
-          // 2 * ---> complex elements, so we have real *and* imag parts
           connex->readMultiReduction(nr_elem_calc_c, res_curr_cnx);
+
+          prepareOutDataConnex(res_temp, res_curr_cnx);
+
+          processOutData(out_vec, cnt_chunk * arr_per_chunk, res_temp, d_vii_matrix, idx_curr_chunk);
 
           // Increment for next chunk
           arr_curr_cnx += process_at_once * vector_array_size;
-          idx_next_chunk = idx_curr_chunk + arr_per_chunk;
-          idx_past_chunk = idx_curr_chunk;
-          idx_curr_chunk = idx_next_chunk;
-          res_past_cnx = res_curr_cnx;
+          idx_curr_chunk += arr_per_chunk;
           ls_to_write += process_at_once;
         } // end loop for each chunk
 
-        // Results for the last chunk
-        prepareOutDataConnex(res_temp, res_past_cnx);
-        processOutData(out_vec, last_chunk * arr_per_chunk, res_temp, d_vii_matrix, idx_past_chunk);
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
       }
