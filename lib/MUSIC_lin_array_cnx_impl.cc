@@ -101,7 +101,7 @@ namespace gr {
 
         factor_mult1 = 1 << 15;
         factor_mult2 = 1 << 15;
-        factor_res = 1 << 15;
+        factor_res = 1 << 14;
 
         // Number of blocks to reduce in a single LS
         const int blocks_to_reduce = vector_array_size / arr_size_c;
@@ -291,7 +291,6 @@ namespace gr {
         processOutData(out_vec, last_chunk * arr_per_chunk, res_temp, d_vii_matrix, idx_past_chunk);
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
-
       }
 
       nout_items_total += noutput_items;
