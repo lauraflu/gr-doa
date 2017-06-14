@@ -136,9 +136,12 @@ namespace gr {
       fvec all_pks_sorted = sort(all_pks, "descend");
       uvec all_pks_sorted_indx = sort_index(all_pks, "descend");
       unsigned num_valid_peaks = all_pks_sorted_indx.size();
+//      std::cout << "Found " << num_valid_peaks << " peaks!" << std::endl;
         // Output only peaks we need
-        if (num_valid_peaks>=d_num_max_vals)
+        if (num_valid_peaks>=d_num_max_vals) {
+            // discard peaks if they're too close
             pk_indxs = all_pk_indxs(all_pks_sorted_indx.rows(0, d_num_max_vals-1));
+        }
         else // Not enough found
         {   unsigned ind = 0;
             uvec max_peak_ind;
