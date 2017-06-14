@@ -285,6 +285,7 @@ namespace gr {
           // Increment for next chunk
 //          arr_curr_cnx = arr_next_cnx;
           arr_curr_cnx += process_at_once * vector_array_size;
+          idx_next_chunk = idx_curr_chunk + arr_per_chunk;
           idx_past_chunk = idx_curr_chunk;
           idx_curr_chunk = idx_next_chunk;
           res_past_cnx = res_curr_cnx;
