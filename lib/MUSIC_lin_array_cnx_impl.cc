@@ -121,7 +121,8 @@ namespace gr {
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-            (malloc(nr_chunks * process_at_once * vector_array_size * sizeof(uint16_t)));
+//            (malloc(nr_chunks * process_at_once * vector_array_size * sizeof(uint16_t)));
+            (malloc(nr_arrays * arr_size_c * arr_size * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
@@ -166,6 +167,8 @@ namespace gr {
         // save transposed copy
         d_vii_matrix_conj = conj(d_vii_matrix);
 //        d_vii_matrix_trans = trans(d_vii_matrix);
+
+        prepareInArrConnex(in0_i, d_vii_matrix_conj);
     }
 
     /*
@@ -239,7 +242,7 @@ namespace gr {
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
         // Prepare current array and matrix for storage in Connex
-        prepareInArrConnex(arr_curr_cnx, d_vii_matrix_conj, arr_per_chunk, idx_curr_chunk);
+//        prepareInArrConnex(arr_curr_cnx, d_vii_matrix_conj, arr_per_chunk, idx_curr_chunk);
         prepareInMatConnex(mat_cnx, U_N_sq);
 
         connex->writeDataToArray(mat_cnx, 1, 900);
@@ -259,13 +262,13 @@ namespace gr {
             return noutput_items;
           }
 
-          // Prepare future data for all but the last chunk
-          if (cnt_chunk != last_chunk) {
-            arr_next_cnx = arr_curr_cnx + process_at_once * vector_array_size;
-            idx_next_chunk = idx_curr_chunk + arr_per_chunk;
-
-            prepareInArrConnex(arr_next_cnx, d_vii_matrix_conj, arr_per_chunk, idx_next_chunk);
-          }
+//          // Prepare future data for all but the last chunk
+//          if (cnt_chunk != last_chunk) {
+//            arr_next_cnx = arr_curr_cnx + process_at_once * vector_array_size;
+//            idx_next_chunk = idx_curr_chunk + arr_per_chunk;
+//
+//            prepareInArrConnex(arr_next_cnx, d_vii_matrix_conj, arr_per_chunk, idx_next_chunk);
+//          }
 
           // Process past data for all but the first chunk
           if (cnt_chunk != 0) {
@@ -279,7 +282,8 @@ namespace gr {
           connex->readMultiReduction(nr_elem_calc_c, res_curr_cnx);
 
           // Increment for next chunk
-          arr_curr_cnx = arr_next_cnx;
+//          arr_curr_cnx = arr_next_cnx;
+          arr_curr_cnx += process_at_once * vector_array_size;
           idx_past_chunk = idx_curr_chunk;
           idx_curr_chunk = idx_next_chunk;
           res_past_cnx = res_curr_cnx;
@@ -304,6 +308,21 @@ namespace gr {
      * Prepare = scale and cast
      *===================================================================*/
     // TODO possibly pointless to pass arr_to_prepare
+    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
+      uint16_t *out_arr, const cx_fmat &in_data)
+    {
+      int idx_cnx = 0;
+
+      for (int j = 0; j < nr_arrays; j++) { // for each array
+        for (int k = 0; k < arr_size; k++) { // store each array this many times
+          for (int i = 0; i < arr_size; i++) {
+            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
+            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
+          }
+        }
+      }
+    }
+
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
       uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
       const int arr_to_start)

@@ -122,6 +122,11 @@ namespace gr {
         const int arr_to_prepare,
         const int arr_to_start);
 
+      void prepareInArrConnex(
+        uint16_t *out_arr,
+        const cx_fmat &in_data);
+
+
       /* \brief Prepares (scales and converts) the elements of the matrix that
        *        will be fed to the ConnexArray. For each output item, the matrix
        *        that is multiplied with the arrays is the same, so it will
