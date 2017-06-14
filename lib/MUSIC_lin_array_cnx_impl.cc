@@ -122,7 +122,6 @@ namespace gr {
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-//            (malloc(nr_chunks * process_at_once * vector_array_size * sizeof(uint16_t)));
             (malloc(nr_arrays * arr_size_c * arr_size * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
             (malloc(vector_array_size * sizeof(uint16_t)));
@@ -169,6 +168,7 @@ namespace gr {
         d_vii_matrix_conj = conj(d_vii_matrix);
 //        d_vii_matrix_trans = trans(d_vii_matrix);
 
+        // Prepare steering vectors for storage on ConnexArray
         prepareInArrConnex(in0_i, d_vii_matrix_conj);
     }
 
@@ -242,8 +242,7 @@ namespace gr {
         // Indices of next, past and current array chunks in matrix format
         int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
 
-        // Prepare current array and matrix for storage in Connex
-//        prepareInArrConnex(arr_curr_cnx, d_vii_matrix_conj, arr_per_chunk, idx_curr_chunk);
+        // Prepare current matrix for storage in Connex
         prepareInMatConnex(mat_cnx, U_N_sq);
 
         connex->writeDataToArray(mat_cnx, 1, 900);
@@ -263,14 +262,6 @@ namespace gr {
             return noutput_items;
           }
 
-//          // Prepare future data for all but the last chunk
-//          if (cnt_chunk != last_chunk) {
-//            arr_next_cnx = arr_curr_cnx + process_at_once * vector_array_size;
-//            idx_next_chunk = idx_curr_chunk + arr_per_chunk;
-//
-//            prepareInArrConnex(arr_next_cnx, d_vii_matrix_conj, arr_per_chunk, idx_next_chunk);
-//          }
-
           // Process past data for all but the first chunk
           if (cnt_chunk != 0) {
             int idx_past_results = (cnt_chunk - 1) * arr_per_chunk;
@@ -283,7 +274,6 @@ namespace gr {
           connex->readMultiReduction(nr_elem_calc_c, res_curr_cnx);
 
           // Increment for next chunk
-//          arr_curr_cnx = arr_next_cnx;
           arr_curr_cnx += process_at_once * vector_array_size;
           idx_next_chunk = idx_curr_chunk + arr_per_chunk;
           idx_past_chunk = idx_curr_chunk;
