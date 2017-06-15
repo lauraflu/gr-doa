@@ -64,7 +64,7 @@ namespace gr {
       // How many arrays are processed at once on the Connexarray
       int arr_process_at_once;
       // How many LSs are used in a kernel execution
-      const int process_at_once = 128;
+      int process_at_once = 128;
 
       // The total number of the arrays that will be multiplied by the same
       // matrix
@@ -82,24 +82,36 @@ namespace gr {
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
       int32_t *res_mult;
+      uint16_t *arr_real, *arr_imag;
 
       // Factors for scaling the input data for the ConnexArray
-      int factor_mult1, factor_mult2, factor_res;
+      uint32_t factor_mult1, factor_mult2, factor_res, factor_final;
 
       // Executes the kernel
       int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
 
+      // Classic kernels
       // Defines the init kernel
       void init_kernel(int size_of_block);
-
       // Defines the init kernel
       void init_index(void);
-
       // Defines the processing kernel
       void multiply_kernel(
         int process_at_once,
         int size_of_block,
         int blocks_to_reduce);
+
+      // Kernels for chained mult
+      // Defines the init kernel
+      void init_chained(int size_of_block);
+      // Defines the init kernel
+      void init_index_chained(void);
+      // Defines the processing kernel
+      void multiply_chained(
+        int process_at_once,
+        int size_of_block,
+        int blocks_to_reduce);
+
 
       /* \brief Prepares (scales and converts to uint16_t) the elements of an
        *        array which will be stored in the ConnexArray.
@@ -126,6 +138,7 @@ namespace gr {
         uint16_t *out_arr,
         const cx_fmat &in_data);
 
+      void prepareInFinalArray(uint16_t *out_arr_real, uint16_t *out_arr_imag, const cx_fmat &in_arr);
 
       /* \brief Prepares (scales and converts) the elements of the matrix that
        *        will be fed to the ConnexArray. For each output item, the matrix
@@ -148,6 +161,11 @@ namespace gr {
         cx_fmat &in_arr,
         const int arr_to_start);
 
+      void prepareProcessOutDataConnex(
+        fvec &out_data,
+        const int &idx_to_start,
+        const int32_t *raw_out_data,
+        const int &nr_elem);
 
 
      public:
