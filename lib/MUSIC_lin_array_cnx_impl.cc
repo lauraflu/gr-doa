@@ -294,28 +294,28 @@ namespace gr {
         out_vec = 10.0 * log10(out_vec/out_vec.max());
 
 
-        gr_complex Q_temp;
-        fvec exp_vec(d_pspectrum_len);
-        for (int ii = 0; ii < d_pspectrum_len; ii++)
-        {
-          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-          exp_vec(ii) = Q_temp.real();
-          out_vec(ii) = 1.0/Q_temp.real();
-        }
-
-        std::cout << "max expected at index " << exp_vec.index_max() << ": " <<
-        exp_vec.max() << ", got at index " << keep_idx_max << ": " <<
-        keep_out_max << std::endl;
-
-
-        out_vec = 10.0*log10(out_vec/out_vec.max());
-        for (int ii = 0; ii < d_pspectrum_len; ii++)
-        {
-          float angle = ii * 0.1757;
-          std::cout << "angle: " << angle << ", index: " << ii << ", expected: "
-          << exp_vec(ii) << ", got: " << keep_out(ii);
-          std::cout << std::endl;
-        }
+//        gr_complex Q_temp;
+//        fvec exp_vec(d_pspectrum_len);
+//        for (int ii = 0; ii < d_pspectrum_len; ii++)
+//        {
+//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
+//          exp_vec(ii) = Q_temp.real();
+//          out_vec(ii) = 1.0/Q_temp.real();
+//        }
+//
+//        std::cout << "max expected at index " << exp_vec.index_max() << ": " <<
+//        exp_vec.max() << ", got at index " << keep_idx_max << ": " <<
+//        keep_out_max << std::endl;
+//
+//
+//        out_vec = 10.0*log10(out_vec/out_vec.max());
+//        for (int ii = 0; ii < d_pspectrum_len; ii++)
+//        {
+//          float angle = ii * 0.3514;
+//          std::cout << "angle: " << angle << ", index: " << ii << ", expected: "
+//          << exp_vec(ii) << ", got: " << keep_out(ii);
+//          std::cout << std::endl;
+//        }
 
 
 
@@ -441,8 +441,8 @@ namespace gr {
         temp1 = (static_cast<float>(raw_out_data[i + 1]) / factor_final);
 
         temp0 += temp1;
-//        out_data(idx_out++) = 1.0 / temp0;
-        out_data(idx_out++) = temp0;
+        out_data(idx_out++) = 1.0 / abs(temp0);
+//        out_data(idx_out++) = abs(temp0);
       }
     }
 
