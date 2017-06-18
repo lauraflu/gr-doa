@@ -333,6 +333,7 @@ namespace gr {
             R6 = INDEX;           // Select only the odd PEs
             R6 = R6 & R29;
             R7 = (R6 == R29);
+            NOP;
           )
 
           EXECUTE_WHERE_EQ(
@@ -348,27 +349,6 @@ namespace gr {
           )
         END_REPEAT;
       END_KERNEL("autocorrelationKernel");
-    }
-
-    void multiplyKernel(void)
-    {
-      BEGIN_KERNEL("mult");
-      R3 = R1 * R2;
-      R3 = MULT_HIGH();     // re1 * re2, im1 * im2
-
-      CELL_SHL(R2, R29);
-      NOP;
-      R4 = SHIFT_REG;
-      R4 = R4 * R1;
-      R4 = MULT_HIGH();     // re1 * im2
-      R4 = R28 - R4;        // The column is conjugated => negate these
-
-      CELL_SHR(R2, R29);
-      NOP;
-      R5 = SHIFT_REG;
-      R5 = R5 * R1;
-      R5 = MULT_HIGH();     // re2 * im1;
-      END_KERNEL("mult");
     }
   } /* namespace doa */
 } /* namespace gr */
