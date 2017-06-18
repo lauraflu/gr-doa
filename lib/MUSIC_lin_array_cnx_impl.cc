@@ -75,8 +75,6 @@ namespace gr {
         mat_size_c = mat_size * 2;
 
         // Number of blocks to reduce in a single LS
-//        int blocks_to_reduce = vector_array_size / arr_size_c;
-//        int size_of_block = arr_size_c;
         int blocks_to_reduce;
         int size_of_block;
 
@@ -92,24 +90,41 @@ namespace gr {
           int available_LS = total_LS - 1;
           if (nr_arrays > (available_LS * arrays_per_LS)) {
             // Split in chunks
+            std::cout << "Splitting in chunks..." << std::endl;
+            int arrays_to_fit = available_LS * arrays_per_LS;
 
+            // Split in even chunks
+            int remainder = 1;
+            nr_chunks = 2;
+            while ((arrays_per_chunk > available_LS) || (remainder != 0)) {
+              arrays_per_chunk = nr_arrays / nr_chunks;
+              remainder = nr_arrays % nr_chunks;
+              nr_chunks++;
+            }
+            nr_chunks--;
+            std::cout << "arrays per chunk = " << arrays_per_chunk << std::endl;
+            std::cout << "nr chunk = " << nr_chunks << std::endl;
+
+            if (arrays_per_chunk == 0) {
+              std::cout << "Couldn't split into chunks!" << std::endl;
+              return;
+            }
           } else {
-            std::cout << "Should be here" << std::endl;
             // Processing all arrays in a kernel job
-            process_at_once = nr_arrays / arrays_per_LS;
-            arr_process_at_once = nr_arrays;
             arrays_per_chunk = nr_arrays;
             nr_chunks = 1;
-
-            // We suppose that the length of the spectrum is a power of 2, as
-            // it's usually the case; otherwise the last LS would be incomplete
-            // and we would have to take that into account, too.
-            nr_elem_calc = nr_arrays * arr_size;
-            nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
-
-            padding = vector_array_size % mat_size_c;
           }
 
+          process_at_once = arrays_per_chunk / arrays_per_LS;
+
+          // We suppose that the length of the spectrum is a power of 2, as
+          // it's usually the case; otherwise the last LS would be incomplete
+          // and we would have to take that into account, too.
+          nr_elem_calc = arrays_per_chunk * arr_size;
+          nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
+
+          padding = vector_array_size % mat_size_c;
+          std::cout << "padding = " << padding << std::endl;
         }
 
 
