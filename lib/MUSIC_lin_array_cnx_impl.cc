@@ -74,21 +74,54 @@ namespace gr {
         arr_size_c = arr_size * 2;
         mat_size_c = mat_size * 2;
 
-        int arrays_per_LS = vector_array_size / mat_size_c;
-        arr_process_at_once = arrays_per_LS * process_at_once;
+        // Number of blocks to reduce in a single LS
+//        int blocks_to_reduce = vector_array_size / arr_size_c;
+//        int size_of_block = arr_size_c;
+        int blocks_to_reduce;
+        int size_of_block;
 
-        if (arr_process_at_once > nr_arrays) {
-          std::cout << "There are more arrays in a processing than arrays available!" << std::endl;
-          std::cout << "Choose a number smaller than " << nr_arrays << std::endl;
-          return;
+        if (mat_size_c < vector_array_size) {
+          // At least one array x matrix multiplication in a LS
+          arrays_per_LS = vector_array_size / mat_size_c;
+
+          // In an interation for a LS
+          blocks_to_reduce = arrays_per_LS * arr_size; // one for each column
+          size_of_block = arr_size_c;
+
+          // See if chunking or processing all at once
+          int available_LS = total_LS - 1;
+          if (nr_arrays > (available_LS * arrays_per_LS)) {
+            // Split in chunks
+
+          } else {
+            std::cout << "Should be here" << std::endl;
+            // Processing all arrays in a kernel job
+            process_at_once = nr_arrays / arrays_per_LS;
+            arr_process_at_once = nr_arrays;
+            arrays_per_chunk = nr_arrays;
+            nr_chunks = 1;
+
+            // We suppose that the length of the spectrum is a power of 2, as
+            // it's usually the case; otherwise the last LS would be incomplete
+            // and we would have to take that into account, too.
+            nr_elem_calc = nr_arrays * arr_size;
+            nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
+
+            padding = vector_array_size % mat_size_c;
+          }
+
         }
 
-        arr_per_chunk = process_at_once * arrays_per_LS;
-        nr_chunks = nr_arrays / arr_per_chunk;
-        // By calculated element we mean one element from an output array that
-        // is the result of an arr * mat multiplication
-        nr_elem_calc = process_at_once * (vector_array_size / arr_size_c);
-        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
+
+
+
+//        int arrays_per_LS = vector_array_size / mat_size_c;
+//        arr_process_at_once = arrays_per_LS * process_at_once;
+//
+//        arrays_per_chunk = process_at_once * arrays_per_LS;
+//        nr_chunks = nr_arrays / arrays_per_chunk;
+//        nr_elem_calc = process_at_once * (vector_array_size / arr_size_c);
+//        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
 
         // Create ConnexMachine instance
         try {
@@ -103,10 +136,6 @@ namespace gr {
         factor_mult1 = 1 << 15;
         factor_mult2 = 1 << 15;
         factor_res = 1 << 14;
-
-        // Number of blocks to reduce in a single LS
-        const int blocks_to_reduce = vector_array_size / arr_size_c;
-        const int size_of_block = arr_size_c;
 
         // Create the kernel
         try {
@@ -133,7 +162,7 @@ namespace gr {
         }
 
         // Form matrix that will store the temporary results in a chunk
-        res_temp = cx_fmat(arr_per_chunk, arr_size, fill::zeros);
+        res_temp = cx_fmat(arrays_per_chunk, arr_size, fill::zeros);
 
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
@@ -264,7 +293,7 @@ namespace gr {
 
           // Process past data for all but the first chunk
           if (cnt_chunk != 0) {
-            int idx_past_results = (cnt_chunk - 1) * arr_per_chunk;
+            int idx_past_results = (cnt_chunk - 1) * arrays_per_chunk;
 
             prepareOutDataConnex(res_temp, res_past_cnx);
             processOutData(out_vec, idx_past_results, res_temp, d_vii_matrix, idx_past_chunk);
@@ -275,7 +304,7 @@ namespace gr {
 
           // Increment for next chunk
           arr_curr_cnx += process_at_once * vector_array_size;
-          idx_next_chunk = idx_curr_chunk + arr_per_chunk;
+          idx_next_chunk = idx_curr_chunk + arrays_per_chunk;
           idx_past_chunk = idx_curr_chunk;
           idx_curr_chunk = idx_next_chunk;
           res_past_cnx = res_curr_cnx;
@@ -284,7 +313,7 @@ namespace gr {
 
         // Results for the last chunk
         prepareOutDataConnex(res_temp, res_past_cnx);
-        processOutData(out_vec, last_chunk * arr_per_chunk, res_temp, d_vii_matrix, idx_past_chunk);
+        processOutData(out_vec, last_chunk * arrays_per_chunk, res_temp, d_vii_matrix, idx_past_chunk);
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
       }
@@ -365,7 +394,7 @@ namespace gr {
 
       // Resultig array of a multiplication is stored column-wise for faster
       // access, since Armadillo matrices are stored column-wise
-      for (int i = 0; i < arr_per_chunk; i++) {
+      for (int i = 0; i < arrays_per_chunk; i++) {
         for (int j = 0; j < arr_size; j++) {
           temp0 = (static_cast<float>(raw_out_data[cnt_cnx++]));
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
@@ -384,7 +413,7 @@ namespace gr {
 
       int j, k;
 
-      for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
+      for (j = 0, k = arr_to_start; j < arrays_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }

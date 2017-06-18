@@ -56,26 +56,47 @@ namespace gr {
 
       ConnexMachine *connex;
 
-      // Variables for easier management of chunks and sizes
+      /* Variables for easier management of chunks and sizes
+       * ---------------------------------------------------
+       * vector_array_size = number of PEs in the ConnexArray
+       * total_LS = number of lines in the Local Storage (LS)
+       */
       const int vector_array_size = 128;
+      const int total_LS = 1024;
+
+      /* Variables for the size of the data
+       * ----------------------------------
+       *  - dimensions that end in _c take into account the real and the imaginary
+       *    parts as separate elements
+       * arr_size = number of complex elements in the array
+       * mat_size = it's a square matrix of size arr_size * arr_size
+       * nr_arrays = number of arrays multiplied by the same matrix; equal to
+       *             the length of the spectrum
+       */
       int arr_size, mat_size;
       int arr_size_c, mat_size_c;
-
-      // How many arrays are processed at once on the Connexarray
-      int arr_process_at_once;
-      // How many LSs are used in a kernel execution
-      const int process_at_once = 128;
-
-      // The total number of the arrays that will be multiplied by the same
-      // matrix
       int nr_arrays;
 
-      // The total number of multiplications will be processed in chunks on the
-      // kernels.
-      // How many of the total number of the arrays can be processed in an
-      // iteration on the ConnexArray kernel
-      int arr_per_chunk;
+      /* Variables related to chunking
+       * -----------------------------
+       * arr_process_at_once = number of arrays processed in a kernel job
+       * process_at_once = number of LSs used in a kernel job
+       * arrays_per_LS = number of arrays that can be multiplied for a LS iteration
+       * arrays_per_chunk = number of arrays processed in a chunk
+       * nr_chunks = number of chunks of data to process
+       * padding -> Depending on the number of antennas used, it's possible that
+       *            we won't fill a LS with data; the padding ensures that the
+       *            data is correctly aligned in the local storage.
+       * nr_elem_calc = number of output elements calculated in a job; output
+       *                element = one element from an output array that is the
+       *                result of an arr * mat multiplication
+       */
+      int arr_process_at_once;
+      int process_at_once;
+      int arrays_per_LS;
+      int arrays_per_chunk;
       int nr_chunks;
+      int padding;
       int nr_elem_calc;
       int nr_elem_calc_c;
 
