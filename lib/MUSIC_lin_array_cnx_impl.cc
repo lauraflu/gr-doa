@@ -90,10 +90,9 @@ namespace gr {
           int available_LS = total_LS - 1;
           if (nr_arrays > (available_LS * arrays_per_LS)) {
             // Split in chunks
-            std::cout << "Splitting in chunks..." << std::endl;
             int arrays_to_fit = available_LS * arrays_per_LS;
 
-            // Split in even chunks
+            // Calculate how many equal chunks are needed
             int remainder = 1;
             nr_chunks = 2;
             while ((arrays_per_chunk > available_LS) || (remainder != 0)) {
@@ -102,8 +101,6 @@ namespace gr {
               nr_chunks++;
             }
             nr_chunks--;
-            std::cout << "arrays per chunk = " << arrays_per_chunk << std::endl;
-            std::cout << "nr chunk = " << nr_chunks << std::endl;
 
             if (arrays_per_chunk == 0) {
               std::cout << "Couldn't split into chunks!" << std::endl;
@@ -126,17 +123,6 @@ namespace gr {
           padding = vector_array_size % mat_size_c;
           std::cout << "padding = " << padding << std::endl;
         }
-
-
-
-
-//        int arrays_per_LS = vector_array_size / mat_size_c;
-//        arr_process_at_once = arrays_per_LS * process_at_once;
-//
-//        arrays_per_chunk = process_at_once * arrays_per_LS;
-//        nr_chunks = nr_arrays / arrays_per_chunk;
-//        nr_elem_calc = process_at_once * (vector_array_size / arr_size_c);
-//        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
 
         // Create ConnexMachine instance
         try {
@@ -502,6 +488,7 @@ namespace gr {
 
             R10 = R9 & R30;
             R7 = (R10 == R30);
+            NOP;
           )
 
           EXECUTE_WHERE_EQ(       // Only in the odd PEs
@@ -514,6 +501,7 @@ namespace gr {
           REPEAT_X_TIMES(blocks_to_reduce);
             EXECUTE_IN_ALL(
               R7 = (R29 < R27);   // Select only blocks of PEs at a time
+              NOP;
             )
             EXECUTE_WHERE_LT(
               R29 = 129;          // A random number > 128 so these PEs won't be
