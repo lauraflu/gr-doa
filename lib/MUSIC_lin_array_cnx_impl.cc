@@ -74,9 +74,16 @@ namespace gr {
         arr_size_c = arr_size * 2;
         mat_size_c = mat_size * 2;
 
+        // Factors for scaling the data
+        factor_mult1 = 1 << 15;
+        factor_mult2 = 1 << 15;
+        factor_res = 1 << 14;
+
         // Number of blocks to reduce in a single LS
         int blocks_to_reduce;
         int size_of_block;
+        int mem_arr;
+        int mem_mat;
 
         if (mat_size_c < vector_array_size) {
           // At least one array x matrix multiplication in a LS
@@ -121,7 +128,12 @@ namespace gr {
           nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
 
           padding = vector_array_size % mat_size_c;
-          std::cout << "padding = " << padding << std::endl;
+
+          // Calculate how much memory to allocate to store the data
+          mem_arr = nr_arrays * (arr_size_c * arr_size + padding);
+          mem_mat = vector_array_size;
+        } else {
+          // Store the matrix on multiple LSs
         }
 
         // Create ConnexMachine instance
@@ -133,10 +145,6 @@ namespace gr {
         } catch (std::string err) {
           std::cout << err << std::endl;
         }
-
-        factor_mult1 = 1 << 15;
-        factor_mult2 = 1 << 15;
-        factor_res = 1 << 14;
 
         // Create the kernel
         try {
@@ -152,9 +160,9 @@ namespace gr {
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-            (malloc(nr_arrays * arr_size_c * arr_size * sizeof(uint16_t)));
+            (malloc(mem_arr * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
-            (malloc(vector_array_size * sizeof(uint16_t)));
+            (malloc(mem_mat * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
             (malloc(nr_chunks * nr_elem_calc_c * sizeof(int32_t)));
 
@@ -342,32 +350,12 @@ namespace gr {
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
           }
         }
+        idx_cnx += padding;
       }
     }
 
-    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-      uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
-      const int arr_to_start)
-    {
-      // in_data is a complex matrix whose columns represent an array to be
-      // multiplied with the matrix and has a number of pspectrum_len columns of
-      // such arrays. Therefore, it's a matrix of size (d_num_ant_ele x
-      // pspectrum_len), aka (arr_size x nr_arrays)
-
-      int idx_cnx = 0;
-
-      for (int j = arr_to_start; j < arr_to_start + arr_to_prepare; j++) { // iterate through arrays
-        // Each array has to be multiplied with each column of the matrix, so we
-        // store each array a number of arr_size consecutively
-        for (int k = 0; k < arr_size; k++) {
-          for (int i = 0; i < arr_size; i++) { // iterate through elements of array
-            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
-            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
-          }
-        }
-      }
-    }
-
+    // TODO Adapt function to take into account the case when the matrix doesn't
+    // fit into a single LS
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
       uint16_t *out_mat, const cx_fmat &in_mat)
     {

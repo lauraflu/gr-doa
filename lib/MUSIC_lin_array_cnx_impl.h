@@ -79,7 +79,6 @@ namespace gr {
 
       /* Variables related to chunking
        * -----------------------------
-       * arr_process_at_once = number of arrays processed in a kernel job
        * process_at_once = number of LSs used in a kernel job
        * arrays_per_LS = number of arrays that can be multiplied for a LS iteration
        * arrays_per_chunk = number of arrays processed in a chunk
@@ -91,7 +90,6 @@ namespace gr {
        *                element = one element from an output array that is the
        *                result of an arr * mat multiplication
        */
-      int arr_process_at_once;
       int process_at_once;
       int arrays_per_LS;
       int arrays_per_chunk;
@@ -137,11 +135,11 @@ namespace gr {
        *        prepared
        * \param arr_to_start The index of the array from which to start
        */
-      void prepareInArrConnex(
-        uint16_t *out_arr,
-        const cx_fmat &in_data,
-        const int arr_to_prepare,
-        const int arr_to_start);
+//      void prepareInArrConnex(
+//        uint16_t *out_arr,
+//        const cx_fmat &in_data,
+//        const int arr_to_prepare,
+//        const int arr_to_start);
 
       void prepareInArrConnex(
         uint16_t *out_arr,
