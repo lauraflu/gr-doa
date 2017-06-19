@@ -97,6 +97,7 @@ namespace gr {
       int padding;
       int nr_elem_calc;
       int nr_elem_calc_c;
+      int matrix_LS;
 
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;

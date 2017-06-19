@@ -85,38 +85,37 @@ namespace gr {
         int mem_arr;
         int mem_mat;
 
+        /*=============================================================
+         * CHUNKING
+         *============================================================*/
         if (mat_size_c < vector_array_size) {
           // At least one array x matrix multiplication in a LS
           arrays_per_LS = vector_array_size / mat_size_c;
+          padding = vector_array_size % mat_size_c;
+
+          matrix_LS = 1;
 
           // In an interation for a LS
           blocks_to_reduce = arrays_per_LS * arr_size; // one for each column
           size_of_block = arr_size_c;
 
-          // See if chunking or processing all at once
+          // Find maximum chunk possible (all chunks are equal)
           int available_LS = total_LS - 1;
-          if (nr_arrays > (available_LS * arrays_per_LS)) {
-            // Split in chunks
-            int arrays_to_fit = available_LS * arrays_per_LS;
+          int arrays_to_fit = available_LS * arrays_per_LS;
+          int remainder = 1;
+          nr_chunks = 1;
 
-            // Calculate how many equal chunks are needed
-            int remainder = 1;
-            nr_chunks = 2;
-            while ((arrays_per_chunk > available_LS) || (remainder != 0)) {
-              arrays_per_chunk = nr_arrays / nr_chunks;
-              remainder = nr_arrays % nr_chunks;
-              nr_chunks++;
-            }
-            nr_chunks--;
+          do {
+            arrays_per_chunk = nr_arrays / nr_chunks;
+            remainder = nr_arrays % nr_chunks;
+            nr_chunks++;
+          } while ((arrays_per_chunk > arrays_to_fit) ||
+                   (remainder != 0));
+          nr_chunks--;
 
-            if (arrays_per_chunk == 0) {
-              std::cout << "Couldn't split into chunks!" << std::endl;
-              return;
-            }
-          } else {
-            // Processing all arrays in a kernel job
-            arrays_per_chunk = nr_arrays;
-            nr_chunks = 1;
+          if (arrays_per_chunk == 0) {
+            std::cout << "Couldn't split into chunks!" << std::endl;
+            return;
           }
 
           process_at_once = arrays_per_chunk / arrays_per_LS;
@@ -127,13 +126,18 @@ namespace gr {
           nr_elem_calc = arrays_per_chunk * arr_size;
           nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
 
-          padding = vector_array_size % mat_size_c;
-
           // Calculate how much memory to allocate to store the data
           mem_arr = nr_arrays * (arr_size_c * arr_size + padding);
           mem_mat = vector_array_size;
         } else {
-          // Store the matrix on multiple LSs
+//          // Store the matrix on multiple LSs
+//          matrix_LS = mat_size_c / vector_array_size;
+//          padding = mat_size_c % vector_array_size;
+//          if (padding != 0)
+//            matrix_LS++;
+//
+//          mem_mat = matrix_LS * vector_array_size;
+//
         }
 
         // Create ConnexMachine instance
