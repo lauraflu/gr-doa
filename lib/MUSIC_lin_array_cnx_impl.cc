@@ -351,29 +351,6 @@ namespace gr {
       }
     }
 
-    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-      uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
-      const int arr_to_start)
-    {
-      // in_data is a complex matrix whose columns represent an array to be
-      // multiplied with the matrix and has a number of pspectrum_len columns of
-      // such arrays. Therefore, it's a matrix of size (d_num_ant_ele x
-      // pspectrum_len), aka (arr_size x nr_arrays)
-
-      int idx_cnx = 0;
-
-      for (int j = arr_to_start; j < arr_to_start + arr_to_prepare; j++) { // iterate through arrays
-        // Each array has to be multiplied with each column of the matrix, so we
-        // store each array a number of arr_size consecutively
-        for (int k = 0; k < arr_size; k++) {
-          for (int i = 0; i < arr_size; i++) { // iterate through elements of array
-            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
-            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
-          }
-        }
-      }
-    }
-
     void MUSIC_lin_array_cnx_impl::prepareInFinalArray(
       uint16_t *out_arr_real, uint16_t *out_arr_imag, const cx_fmat &in_arr)
     {
@@ -411,24 +388,6 @@ namespace gr {
       }
     }
 
-    void MUSIC_lin_array_cnx_impl::prepareOutDataConnex(
-      cx_fmat &out_data, const int32_t *raw_out_data)
-    {
-      float temp0, temp1;
-      int cnt_cnx = 0;
-
-      // Resultig array of a multiplication is stored column-wise for faster
-      // access, since Armadillo matrices are stored column-wise
-      for (int i = 0; i < arr_per_chunk; i++) {
-        for (int j = 0; j < arr_size; j++) {
-          temp0 = (static_cast<float>(raw_out_data[cnt_cnx++]));
-          temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
-
-          out_data(i, j) = gr_complex(temp0, temp1);
-        }
-      }
-    }
-
     void MUSIC_lin_array_cnx_impl::prepareProcessOutDataConnex(
       fvec &out_data, const int &idx_to_start, const int32_t *raw_out_data,
       const int &nr_elem)
@@ -443,22 +402,6 @@ namespace gr {
         temp0 += temp1;
         out_data(idx_out++) = 1.0 / abs(temp0);
 //        out_data(idx_out++) = abs(temp0);
-      }
-    }
-
-    void MUSIC_lin_array_cnx_impl::processOutData(
-      fvec &out_vec, const int idx_to_start, cx_fmat &temp_res, cx_fmat &in_arr,
-      const int arr_to_start)
-    {
-      int idx_out = idx_to_start;
-      gr_complex temp_out;
-
-      int j, k;
-
-      for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
-        temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
-//        out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
-        out_vec(idx_out++) = temp_out.real() / factor_res;
       }
     }
 
@@ -578,90 +521,6 @@ namespace gr {
 
       END_KERNEL("multChained");
     }
-
-    void MUSIC_lin_array_cnx_impl::init_kernel(int size_of_block)
-    {
-      BEGIN_KERNEL("initKernel");
-        EXECUTE_IN_ALL(
-          R25 = 0;              // From where to start reading the array
-          R26 = 900;            // From where to start reading the matrix
-          R30 = 1;
-          R31 = 0;
-          R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
-                                // on which reduction is performed at once
-          R9 = INDEX;           // Select only the odd PEs
-        )
-      END_KERNEL("initKernel");
-    }
-
-    void MUSIC_lin_array_cnx_impl::init_index(void)
-    {
-      BEGIN_KERNEL("initIndex");
-        EXECUTE_IN_ALL(
-          R25 = 0;                // Reset the array index
-          R2 = LS[R26];           // Load new matrix
-        )
-      END_KERNEL("initIndex");
-    }
-
-    void MUSIC_lin_array_cnx_impl::multiply_kernel(
-      int process_at_once, int size_of_block, int blocks_to_reduce)
-    {
-      BEGIN_KERNEL("multiplyArrMatKernel");
-        for (int i = 0; i < process_at_once; i++) {
-          EXECUTE_IN_ALL(
-            R1 = LS[R25];         // load input array
-            R29 = INDEX;          // Used later to select PEs for reduction
-            R27 = size_of_block;  // Used to select blocks for reduction
-
-            R3 = R1 * R2;         // a1 * a2, b1 * b2
-            R3 = MULT_HIGH();
-
-            CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
-            NOP;
-            R4 = SHIFT_REG;
-            R4 = R1 * R4;         // a1 * b2
-            R4 = MULT_HIGH();
-
-            CELL_SHR(R2, R30);
-            NOP;
-            R5 = SHIFT_REG;
-            R5 = R1 * R5;         // b1 * a2
-            R5 = MULT_HIGH();
-
-            R10 = R9 & R30;
-            R7 = (R10 == R30);
-          )
-
-          EXECUTE_WHERE_EQ(       // Only in the odd PEs
-            // Getting -b1 * b2 in each odd cell
-            R3 = R31 - R3;        // All partial real parts are in R3
-
-            R4 = R5;              // All partial imaginary parts are now in R4
-          )
-
-          REPEAT_X_TIMES(blocks_to_reduce);
-            EXECUTE_IN_ALL(
-              R7 = (R29 < R27);   // Select only blocks of PEs at a time
-            )
-            EXECUTE_WHERE_LT(
-              R29 = 129;          // A random number > 128 so these PEs won't be
-                                  // selected again
-              REDUCE(R3);         // Real part
-              REDUCE(R4);         // Imaginary part
-            )
-            EXECUTE_IN_ALL(
-              R27 = R27 + R28;    // Go to the next block of PEs
-            )
-          END_REPEAT;
-
-          EXECUTE_IN_ALL(
-            R25 = R25 + R30;      // Go to the next LS
-          )
-        }
-      END_KERNEL("multiplyArrMatKernel");
-    } // end multiplyArrMatKernel
-
   } /* namespace doa */
 } /* namespace gr */
 
