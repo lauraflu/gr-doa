@@ -79,7 +79,7 @@ namespace gr {
 
       /* Variables related to chunking
        * -----------------------------
-       * process_at_once = number of LSs used in a kernel job
+       * iterations_per_chunk = number of LSs used in a kernel job
        * arrays_per_LS = number of arrays that can be multiplied for a LS iteration
        * arrays_per_chunk = number of arrays processed in a chunk
        * nr_chunks = number of chunks of data to process
@@ -90,14 +90,15 @@ namespace gr {
        *                element = one element from an output array that is the
        *                result of an arr * mat multiplication
        */
-      int process_at_once;
+      int iterations_per_chunk;
       int arrays_per_LS;
+      int mat_per_LS;
       int arrays_per_chunk;
       int nr_chunks;
       int padding;
       int nr_elem_calc;
       int nr_elem_calc_c;
-      int matrix_LS;
+      int LS_for_mat;
 
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
@@ -117,7 +118,7 @@ namespace gr {
 
       // Defines the processing kernel
       void multiply_kernel(
-        int process_at_once,
+        int iterations_per_chunk,
         int size_of_block,
         int blocks_to_reduce);
 

@@ -88,12 +88,12 @@ namespace gr {
         /*=============================================================
          * CHUNKING
          *============================================================*/
-        if (mat_size_c < vector_array_size) {
+        if (mat_size_c <= vector_array_size) {
           // At least one array x matrix multiplication in a LS
           arrays_per_LS = vector_array_size / mat_size_c;
           padding = vector_array_size % mat_size_c;
 
-          matrix_LS = 1;
+          LS_for_mat = 1;
 
           // In an interation for a LS
           blocks_to_reduce = arrays_per_LS * arr_size; // one for each column
@@ -114,11 +114,11 @@ namespace gr {
           nr_chunks--;
 
           if (arrays_per_chunk == 0) {
-            std::cout << "Couldn't split into chunks!" << std::endl;
+            std::cout << "Couldn't split arrays into chunks!" << std::endl;
             return;
           }
 
-          process_at_once = arrays_per_chunk / arrays_per_LS;
+          iterations_per_chunk = arrays_per_chunk / arrays_per_LS;
 
           // We suppose that the length of the spectrum is a power of 2, as
           // it's usually the case; otherwise the last LS would be incomplete
@@ -130,14 +130,18 @@ namespace gr {
           mem_arr = nr_arrays * (arr_size_c * arr_size + padding);
           mem_mat = vector_array_size;
         } else {
-//          // Store the matrix on multiple LSs
-//          matrix_LS = mat_size_c / vector_array_size;
-//          padding = mat_size_c % vector_array_size;
-//          if (padding != 0)
-//            matrix_LS++;
-//
-//          mem_mat = matrix_LS * vector_array_size;
-//
+//          // Split matrix across LSs in even chunks
+//          int nr_cols = arr_size;
+//          int mat_cols_per_LS = nr_cols; // start from the total number of cols
+//          int mat_elems_in_LS = mat_size_c; // start with the total number
+//          int nr_mat_chunks = 2;
+//          int remainder = 1;
+//          while ((mat_elems_in_LS > vector_array_size) || (remainder != 0)) {
+//            mat_cols_per_LS = nr_cols / nr_mat_chunks;
+//            remainder = nr_cols % nr_mat_chunks;
+//            mat_elems_in_LS = mat_cols_per_LS * arr_size_c;
+//            nr_mat_chunks++;
+//          }
         }
 
         // Create ConnexMachine instance
@@ -154,7 +158,7 @@ namespace gr {
         try {
           init_kernel(size_of_block);
           init_index();
-          multiply_kernel(process_at_once, size_of_block, blocks_to_reduce);
+          multiply_kernel(iterations_per_chunk, size_of_block, blocks_to_reduce);
         } catch (std::string e) {
           std::cout << e << std::endl;
         }
@@ -297,7 +301,7 @@ namespace gr {
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
           res_curr_cnx = &res_mult[cnt_chunk * nr_elem_calc_c];
 
-          connex->writeDataToArray(arr_curr_cnx, process_at_once, ls_to_write);
+          connex->writeDataToArray(arr_curr_cnx, iterations_per_chunk, ls_to_write);
 
           int res = executeLocalKernel(connex, "multiplyArrMatKernel");
           if (res) {
@@ -316,12 +320,12 @@ namespace gr {
           connex->readMultiReduction(nr_elem_calc_c, res_curr_cnx);
 
           // Increment for next chunk
-          arr_curr_cnx += process_at_once * vector_array_size;
+          arr_curr_cnx += iterations_per_chunk * vector_array_size;
           idx_next_chunk = idx_curr_chunk + arrays_per_chunk;
           idx_past_chunk = idx_curr_chunk;
           idx_curr_chunk = idx_next_chunk;
           res_past_cnx = res_curr_cnx;
-          ls_to_write += process_at_once;
+          ls_to_write += iterations_per_chunk;
         } // end loop for each chunk
 
         // Results for the last chunk
@@ -454,10 +458,10 @@ namespace gr {
     }
 
     void MUSIC_lin_array_cnx_impl::multiply_kernel(
-      int process_at_once, int size_of_block, int blocks_to_reduce)
+      int iterations_per_chunk, int size_of_block, int blocks_to_reduce)
     {
       BEGIN_KERNEL("multiplyArrMatKernel");
-        for (int i = 0; i < process_at_once; i++) {
+        for (int i = 0; i < iterations_per_chunk; i++) {
           EXECUTE_IN_ALL(
             R1 = LS[R25];         // load input array
             R29 = INDEX;          // Used later to select PEs for reduction
