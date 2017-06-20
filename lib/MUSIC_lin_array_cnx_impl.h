@@ -55,6 +55,8 @@ namespace gr {
       int nout_items_total = 0;
 
       ConnexMachine *connex;
+      std::string mult_kernel_to_exec;
+      std::string init_kernel_to_exec;
 
       /* Variables for easier management of chunks and sizes
        * ---------------------------------------------------
@@ -92,13 +94,13 @@ namespace gr {
        */
       int iterations_per_chunk;
       int arrays_per_LS;
-      int mat_per_LS;
       int arrays_per_chunk;
       int nr_chunks;
       int padding;
       int nr_elem_calc;
       int nr_elem_calc_c;
       int LS_for_mat;
+      int mat_cols_per_LS;
 
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
@@ -115,12 +117,12 @@ namespace gr {
 
       // Defines the init kernel
       void init_index(void);
+      void init_index_large(void);
 
       // Defines the processing kernel
-      void multiply_kernel(
-        int iterations_per_chunk,
-        int size_of_block,
-        int blocks_to_reduce);
+      void multiply_kernel(int iterations_per_chunk, int size_of_block, int blocks_to_reduce);
+      void multiply_kernel_large(int n_arr, int n_mat_chunks, int size_of_block,
+        int full_blocks_to_reduce, int partial_blocks_to_reduce);
 
       /* \brief Prepares (scales and converts to uint16_t) the elements of an
        *        array which will be stored in the ConnexArray.
