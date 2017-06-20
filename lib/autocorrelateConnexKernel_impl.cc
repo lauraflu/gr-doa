@@ -31,12 +31,6 @@
 namespace gr {
   namespace doa {
 
-    std::vector<uint16_t> row_nr;
-    std::vector<uint16_t> col_nr;
-
-    int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
-    void autocorrelationKernel(const int nr_loops);
-    void multiplyKernel(void);
 
     autocorrelateConnexKernel::sptr
     autocorrelateConnexKernel::make(
@@ -92,20 +86,48 @@ namespace gr {
       n_elems_c = 2 * n_elems;
       n_elems_out = n_rows * n_rows;
       n_elems_out_c = n_elems_out * 2;
-      n_ls_busy = n_elems_c / vector_array_size;
-      // How many reductions will be performed on Connex
-      n_red_per_elem = ((n_cols * 2) / vector_array_size) * 2;
 
-      const int nr_loops = (n_cols * 2) / vector_array_size;
+      int n_cols_c = n_cols * 2;
+
+      if (n_cols_c < vector_array_size) {
+        LS_per_row = 1;
+        padding = vector_array_size - n_cols_c;
+      } else {
+        LS_per_row = n_cols_c / vector_array_size;
+        padding = n_cols_c % vector_array_size;
+        if (padding != 0)
+          LS_per_row++;
+      }
+
+      std::cout << "LS_per_row = " << LS_per_row << std::endl;
+
+      total_LS_used = LS_per_row * n_rows;
+      n_red_per_elem = LS_per_row * 2;
+
+      // Number of output elements computed: n_rows * (n_rows + 1) / 2
+      n_red =  (n_rows * (n_rows + 1) / 2) * n_red_per_elem;
+
+      if (local_storage_size < total_LS_used) {
+        std::cout << "Chunking not yet implemented! More input data that can be processed!"
+        << std::endl;
+        return;
+      }
+
+      std::cout << "Total LS used = " << total_LS_used << std::endl;
+      std::cout << "n_red_per_elem = " << n_red_per_elem << std::endl;
+      std::cout << "n_red = " << n_red << std::endl;
 
       try {
-        autocorrelationKernel(nr_loops);
+        initKernel(LS_per_row);
+        autocorrelationKernel(LS_per_row);
       } catch (std::string err) {
         std::cout << err << std::endl;
       }
 
+      executeLocalKernel(connex, "initKernel");
+
       in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
-      out_data_cnx = static_cast<int32_t *>(malloc(n_red_per_elem * sizeof(int32_t)));
+      out_data_cnx = static_cast<int32_t *>(malloc(n_red * sizeof(int32_t)));
 
       d_nonoverlap_size = d_snapshot_size-d_overlap_size;
       set_history(d_overlap_size+1);
@@ -152,39 +174,53 @@ namespace gr {
           prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
         }
 
-        connex->writeDataToArray(in_data_cnx, n_ls_busy, 0);
+        connex->writeDataToArray(in_data_cnx, total_LS_used, 0);
 
+        executeLocalKernel(connex, autocorrelation_kernel);
+
+        connex->readMultiReduction(n_red, out_data_cnx);
+
+        int32_t *curr_out_data_cnx = out_data_cnx;
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-          // Only elements higher or equal than the main diagonal
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
-            // TODO maybe better with real assignation; this destroys and
-            // creates new elements with this value
-            row_nr.assign(vector_array_size, cnt_row);
-            col_nr.assign(vector_array_size, cnt_col);
-
-            connex->writeDataToArray(row_nr.data(), 1, 1022);
-            connex->writeDataToArray(col_nr.data(), 1, 1023);
-
-            int result = executeLocalKernel(connex, autocorrelation_kernel);
-            if (result) {
-              return (output_matrices);
-            }
-
-            connex->readMultiReduction(n_red_per_elem, out_data_cnx);
-
-            // process out data; consider out array stored column-first
             int curr_idx = cnt_row + cnt_col * n_rows;
-            out_data[curr_idx] =
-              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
+            out_data[curr_idx] = prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
+
             // Hermitian matrix => a_ij = conj(a_ji);
             out_data[cnt_col + cnt_row * n_rows] =
               gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
 
-//            std::cout << "data_out[" << cnt_row << ", " << cnt_col << "] = " <<
-//              "data_out[" << cnt_col << ", " << cnt_row << "] = " <<
-//              out_data[curr_idx] << " ";
+            curr_out_data_cnx += n_red_per_elem;
           }
         }
+
+//        for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+//          // Only elements higher or equal than the main diagonal
+//          for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+//            // TODO maybe better with real assignation; this destroys and
+//            // creates new elements with this value
+//            row_nr.assign(vector_array_size, cnt_row);
+//            col_nr.assign(vector_array_size, cnt_col);
+//
+//            connex->writeDataToArray(row_nr.data(), 1, 1022);
+//            connex->writeDataToArray(col_nr.data(), 1, 1023);
+//
+//            int result = executeLocalKernel(connex, autocorrelation_kernel);
+//            if (result) {
+//              return (output_matrices);
+//            }
+//
+//            connex->readMultiReduction(n_red_per_elem, out_data_cnx);
+//
+//            // process out data; consider out array stored column-first
+//            int curr_idx = cnt_row + cnt_col * n_rows;
+//            out_data[curr_idx] =
+//              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
+//            // Hermitian matrix => a_ij = conj(a_ji);
+//            out_data[cnt_col + cnt_row * n_rows] =
+//              gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
+//          }
+//        }
 
         // Averaging results
         // TODO: check if it's faster to use arma here
@@ -280,7 +316,8 @@ namespace gr {
       return gr_complex(acc_real, acc_imag);
     }
 
-    int executeLocalKernel(ConnexMachine *connex, std::string kernel_name)
+    int autocorrelateConnexKernel_impl::executeLocalKernel(
+      ConnexMachine *connex, std::string kernel_name)
     {
       try {
         connex->executeKernel(kernel_name.c_str());
@@ -291,63 +328,76 @@ namespace gr {
       return 0;
     }
 
-    void autocorrelationKernel(const int nr_loops)
-    {
-      BEGIN_KERNEL("autocorrelationKernel");
+    void autocorrelateConnexKernel_impl::initKernel(const int &LS_per_row_) {
+      BEGIN_KERNEL("initKernel");
         EXECUTE_IN_ALL(
           // Some constants
-          R0 = nr_loops;
+          R0 = LS_per_row_;
           R29 = 1;
           R28 = 0;
-
-          // TODO what's the right way to put the indices in LS to be read?
-          R30 = LS[1022];         // line i
-          R31 = LS[1023];         // col j
-
-          // keep indices from where to load the lines and columns
-          R30 = R30 * R0;         // go to the LS with line i
-          R31 = R31 * R0;         // go to the Ls with col j
+          R25 = 2;
         )
+      END_KERNEL("initKernel");
+    }
 
-        REPEAT_X_TIMES(nr_loops);
+    void autocorrelateConnexKernel_impl::autocorrelationKernel(
+      const int &iterations_per_array)
+    {
+      BEGIN_KERNEL("autocorrelationKernel");
+        for (int cnt_line = 0; cnt_line < n_rows; cnt_line++) {
           EXECUTE_IN_ALL(
-            R1 = LS[R30];
-            R2 = LS[R31];
-
-            R3 = R1 * R2;
-            R3 = MULT_HIGH();     // re1 * re2, im1 * im2
-
-            CELL_SHL(R2, R29);
-            NOP;
-            R4 = SHIFT_REG;
-            R4 = R4 * R1;
-            R4 = MULT_HIGH();     // re1 * im2
-            R4 = R28 - R4;        // The column is conjugated => negate these
-
-            CELL_SHR(R2, R29);
-            NOP;
-            R5 = SHIFT_REG;
-            R5 = R5 * R1;
-            R5 = MULT_HIGH();     // re2 * im1;
-
-            R6 = INDEX;           // Select only the odd PEs
-            R6 = R6 & R29;
-            R7 = (R6 == R29);
-            NOP;
+            R14 = cnt_line;
+            R30 = R14 * R0;             // go to line i
+            R30 = MULT_HIGH();
           )
+          for (int cnt_col = cnt_line; cnt_col < n_rows; cnt_col++) {
+            EXECUTE_IN_ALL(
+              R14 = cnt_col;
+              R31 = R14 * R0;           // go to col j
+              R31 = MULT_HIGH();
+            )
 
-          EXECUTE_WHERE_EQ(
-            R4 = R5;              // All partial imaginary parts are now in R4
-          )
+            REPEAT_X_TIMES(iterations_per_array);
+              EXECUTE_IN_ALL(
+                R1 = LS[R30];
+                R2 = LS[R31];
 
-          EXECUTE_IN_ALL(
-            REDUCE(R3);
-            REDUCE(R4);
+                R3 = R1 * R2;
+                R3 = MULT_HIGH();       // re1 * re2, im1 * im2
 
-            R30 = R30 + R29;      // Go to next chunk on line & col
-            R31 = R31 + R29;
-          )
-        END_REPEAT;
+                CELL_SHL(R2, R29);
+                NOP;
+                R4 = SHIFT_REG;
+                R4 = R4 * R1;
+                R4 = MULT_HIGH();       // re1 * im2
+                R4 = R28 - R4;          // The column is conjugated => negate these
+
+                CELL_SHR(R2, R29);
+                NOP;
+                R5 = SHIFT_REG;
+                R5 = R5 * R1;
+                R5 = MULT_HIGH();       // re2 * im1;
+
+                R6 = INDEX;             // Select only the odd PEs
+                R6 = R6 & R29;
+                R7 = (R6 == R29);
+                NOP;
+              )
+
+              EXECUTE_WHERE_EQ(
+                R4 = R5;                // All partial imaginary parts are now in R4
+              )
+
+              EXECUTE_IN_ALL(
+                REDUCE(R3);
+                REDUCE(R4);
+
+                R30 = R30 + R29;        // Go to next chunk on line & col
+                R31 = R31 + R29;
+              )
+            END_REPEAT;
+          }
+        }
       END_KERNEL("autocorrelationKernel");
     }
   } /* namespace doa */

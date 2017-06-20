@@ -70,7 +70,10 @@ namespace gr {
       int n_elems_c;
       int n_elems_out;
       int n_elems_out_c;
-      int n_ls_busy;
+      int LS_per_row;
+      int padding;
+      int total_LS_used;
+      int n_red;
       int n_red_per_elem;
 
       /*
@@ -105,6 +108,10 @@ namespace gr {
 
       gr_complex prepareAndProcessOutData(
         const int32_t *in_data, const int n_elems_in);
+
+      int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
+      void initKernel(const int &LS_per_row_);
+      void autocorrelationKernel(const int &iterations_per_array);
 
      public:
       autocorrelateConnexKernel_impl(
