@@ -89,7 +89,8 @@ namespace gr {
       void prepareInData(
         uint16_t *out_data,
         const gr_complex *in_data,
-        const int n_elems_in);
+        const int &n_elems_in,
+        const int &padding_);
 
       /*
        * There must be space for at least n_elems_in / 2 at the address pointed
@@ -98,16 +99,16 @@ namespace gr {
       void prepareOutData(
         gr_complex *out_data,
         const int32_t *in_data,
-        const int n_elems_in
+        const int &n_elems_in
       );
 
       void printOutData(
         const uint16_t *in_data,
-        const int n_elems_in
+        const int &n_elems_in
       );
 
       gr_complex prepareAndProcessOutData(
-        const int32_t *in_data, const int n_elems_in);
+        const int32_t *in_data, const int &n_elems_in);
 
       int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
       void initKernel(const int &LS_per_row_);

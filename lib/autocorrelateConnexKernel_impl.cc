@@ -118,6 +118,7 @@ namespace gr {
         std::cout << err << std::endl;
       }
 
+      // Initialize Connex registers with some values
       executeLocalKernel(connex, "initKernel");
 
       in_data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
@@ -165,7 +166,7 @@ namespace gr {
         // Keep pointers to input data
         for (int k = 0; k < d_num_inputs; k++) {
           in_data_ptr[k] = ((gr_complex *)input_items[k] + i * d_nonoverlap_size);
-          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
+          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols, padding);
         }
 
         connex->writeDataToArray(in_data_cnx, total_LS_used, 0);
@@ -230,16 +231,22 @@ namespace gr {
     }
 
     void autocorrelateConnexKernel_impl::prepareInData(
-      uint16_t *out_data, const gr_complex *in_data, const int n_elems_in)
+      uint16_t *out_data, const gr_complex *in_data, const int &n_elems_in,
+      const int &padding_)
     {
+      int n_elems_out_util = 2 * n_elems_in;
       for (int i = 0; i < n_elems_in; i++) {
         out_data[2 * i] = static_cast<uint16_t>(in_data[i].real() * factor_mult);
         out_data[2 * i + 1] = static_cast<uint16_t>(in_data[i].imag() * factor_mult);
       }
+      if (padding != 0)
+        for (int i = n_elems_out_util; i < n_elems_out_util + padding_; i++) {
+          out_data[i] = 0; // padding with zeros
+        }
     }
 
     void autocorrelateConnexKernel_impl::prepareOutData(
-      gr_complex *out_data, const int32_t *in_data, const int n_elems_in)
+      gr_complex *out_data, const int32_t *in_data, const int &n_elems_in)
     {
       float temp_real, temp_imag;
       for (int i = 0; i < n_elems_in; i+=2) {
@@ -251,7 +258,7 @@ namespace gr {
     }
 
     void autocorrelateConnexKernel_impl::printOutData(
-      const uint16_t *in_data, const int n_elems_in)
+      const uint16_t *in_data, const int &n_elems_in)
     {
       float temp_real, temp_imag;
       for (int i = 0; i < n_elems_in; i+=2) {
@@ -264,7 +271,7 @@ namespace gr {
     }
 
     gr_complex autocorrelateConnexKernel_impl::prepareAndProcessOutData(
-      const int32_t *in_data, const int n_elems_in)
+      const int32_t *in_data, const int &n_elems_in)
     {
       float temp_real, temp_imag;
       float acc_real = 0, acc_imag = 0;
@@ -317,7 +324,7 @@ namespace gr {
               R14 = i;
               R15 = j;
 
-              R30 = R14 * R0;             // go to line i
+              R30 = R14 * R0;           // go to line i
               R31 = R15 * R0;           // go to col j
             )
 
