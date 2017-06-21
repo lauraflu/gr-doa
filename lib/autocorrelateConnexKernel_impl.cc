@@ -99,8 +99,6 @@ namespace gr {
           LS_per_row++;
       }
 
-      std::cout << "LS_per_row = " << LS_per_row << std::endl;
-
       total_LS_used = LS_per_row * n_rows;
       n_red_per_elem = LS_per_row * 2;
 
@@ -112,10 +110,6 @@ namespace gr {
         << std::endl;
         return;
       }
-
-      std::cout << "Total LS used = " << total_LS_used << std::endl;
-      std::cout << "n_red_per_elem = " << n_red_per_elem << std::endl;
-      std::cout << "n_red = " << n_red << std::endl;
 
       try {
         initKernel(LS_per_row);
@@ -178,17 +172,6 @@ namespace gr {
 
         executeLocalKernel(connex, autocorrelation_kernel);
 
-
-//        uint16_t *temp_res = (uint16_t *)malloc(128 * sizeof(uint16_t));
-//        connex->readDataFromArray(temp_res, 1, 1023);
-//        std::cout << "===========" << std::endl;
-//        for (int k = 0; k < 128; k++) {
-//          float tempp = (float)temp_res[k] / factor_mult;
-//          tempp = (tempp > 6) ? tempp - 8 : tempp;
-////          std::cout << "temp[ " << k << "] = " << tempp << std::endl;
-//        }
-//        free(temp_res);
-
         int32_t *curr_out_data_cnx = out_data_cnx;
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
@@ -196,10 +179,6 @@ namespace gr {
 
             int curr_idx = cnt_row + cnt_col * n_rows;
             out_data[curr_idx] = prepareAndProcessOutData(curr_out_data_cnx, n_red_per_elem / 2);
-
-//            std::cout << "out_data[" << cnt_row << ", " << cnt_col << "] = " <<
-//            out_data[curr_idx] << std::endl;
-//            std::cout << "===========" << std::endl;
 
             // Hermitian matrix => a_ij = conj(a_ji);
             out_data[cnt_col + cnt_row * n_rows] =
@@ -212,34 +191,34 @@ namespace gr {
 
         // Averaging results
         // TODO: check if it's faster to use arma here
-//        if (d_avg_method) {
-//          std::complex<float> two_c = (2.0, 2.0);
-//          std::vector<std::vector<gr_complex>> refl_matrix;
-//          refl_matrix.resize(n_rows);
-//
-//          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-//            refl_matrix[cnt_row].resize(n_rows);
-//
-//            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
-//              int idx_row = n_rows - 1 - cnt_row;
-//              int idx_col = n_rows - 1 - cnt_col;
-//              int idx = idx_row + idx_col * n_rows;
-//
-//              // Divide the initial results by 2
-//              out_data[idx] = out_data[idx] / two_c;
-//
-//              // form reflection matrix
-//              refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
-//            }
-//          }
-//
-//          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-//            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
-//              int idx = cnt_row + cnt_col * n_rows;
-//              out_data[idx] += refl_matrix[cnt_row][cnt_col];
-//            }
-//          }
-//        } // end loop averaging
+        if (d_avg_method) {
+          std::complex<float> two_c = (2.0, 2.0);
+          std::vector<std::vector<gr_complex>> refl_matrix;
+          refl_matrix.resize(n_rows);
+
+          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+            refl_matrix[cnt_row].resize(n_rows);
+
+            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
+              int idx_row = n_rows - 1 - cnt_row;
+              int idx_col = n_rows - 1 - cnt_col;
+              int idx = idx_row + idx_col * n_rows;
+
+              // Divide the initial results by 2
+              out_data[idx] = out_data[idx] / two_c;
+
+              // form reflection matrix
+              refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
+            }
+          }
+
+          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
+              int idx = cnt_row + cnt_col * n_rows;
+              out_data[idx] += refl_matrix[cnt_row][cnt_col];
+            }
+          }
+        } // end loop averaging
       } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
@@ -292,7 +271,6 @@ namespace gr {
       for (int i = 0; i < n_elems_in; i+=2) {
         temp_real = static_cast<float>(in_data[i]) / factor_res;
         temp_imag = static_cast<float>(in_data[i + 1]) / factor_res;
-//        std::cout << "data out of connex[" << i << "] = " << temp_real << ", " << temp_imag<< std::endl;
 
         acc_real += temp_real;
         acc_imag += temp_imag;
