@@ -174,31 +174,28 @@ namespace gr {
           prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
         }
 
-        std::cout << "Ls used: " << total_LS_used << std::endl;
         connex->writeDataToArray(in_data_cnx, total_LS_used, 0);
 
         executeLocalKernel(connex, autocorrelation_kernel);
 
-        connex->readMultiReduction(n_red, out_data_cnx);
 
-        uint16_t *temp_res = (uint16_t *)malloc(128 * sizeof(uint16_t));
-        connex->readDataFromArray(temp_res, 1, 1023);
-        std::cout << "===========" << std::endl;
-        for (int k = 0; k < 64; k+=2) {
-          float tempp = (float)temp_res[k] / factor_mult;
-          tempp = (tempp > 6) ? tempp - 8 : tempp;
-          float tempp1 = (float)temp_res[k+1] / factor_mult;
-          tempp1 = (tempp1 > 6) ? tempp1 - 8 : tempp1;
-//          std::cout << "exp = " << in_data_ptr[3][k/2] << ", got: " << tempp << ", " << tempp1 << std::endl;
-        }
-        free(temp_res);
+//        uint16_t *temp_res = (uint16_t *)malloc(128 * sizeof(uint16_t));
+//        connex->readDataFromArray(temp_res, 1, 1023);
+//        std::cout << "===========" << std::endl;
+//        for (int k = 0; k < 128; k++) {
+//          float tempp = (float)temp_res[k] / factor_mult;
+//          tempp = (tempp > 6) ? tempp - 8 : tempp;
+////          std::cout << "temp[ " << k << "] = " << tempp << std::endl;
+//        }
+//        free(temp_res);
 
         int32_t *curr_out_data_cnx = out_data_cnx;
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+            connex->readMultiReduction(n_red_per_elem, curr_out_data_cnx);
 
             int curr_idx = cnt_row + cnt_col * n_rows;
-            out_data[curr_idx] = prepareAndProcessOutData(out_data_cnx, n_red_per_elem / 2);
+            out_data[curr_idx] = prepareAndProcessOutData(curr_out_data_cnx, n_red_per_elem / 2);
 
 //            std::cout << "out_data[" << cnt_row << ", " << cnt_col << "] = " <<
 //            out_data[curr_idx] << std::endl;
@@ -295,7 +292,7 @@ namespace gr {
       for (int i = 0; i < n_elems_in; i+=2) {
         temp_real = static_cast<float>(in_data[i]) / factor_res;
         temp_imag = static_cast<float>(in_data[i + 1]) / factor_res;
-        std::cout << "data out of connex[" << i << "] = " << in_data[i] << " " << in_data[i+1] << std::endl;
+//        std::cout << "data out of connex[" << i << "] = " << temp_real << ", " << temp_imag<< std::endl;
 
         acc_real += temp_real;
         acc_imag += temp_imag;
