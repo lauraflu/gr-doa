@@ -174,17 +174,35 @@ namespace gr {
           prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols);
         }
 
+        std::cout << "Ls used: " << total_LS_used << std::endl;
         connex->writeDataToArray(in_data_cnx, total_LS_used, 0);
 
         executeLocalKernel(connex, autocorrelation_kernel);
 
         connex->readMultiReduction(n_red, out_data_cnx);
 
+        uint16_t *temp_res = (uint16_t *)malloc(128 * sizeof(uint16_t));
+        connex->readDataFromArray(temp_res, 1, 1023);
+        std::cout << "===========" << std::endl;
+        for (int k = 0; k < 64; k+=2) {
+          float tempp = (float)temp_res[k] / factor_mult;
+          tempp = (tempp > 6) ? tempp - 8 : tempp;
+          float tempp1 = (float)temp_res[k+1] / factor_mult;
+          tempp1 = (tempp1 > 6) ? tempp1 - 8 : tempp1;
+//          std::cout << "exp = " << in_data_ptr[3][k/2] << ", got: " << tempp << ", " << tempp1 << std::endl;
+        }
+        free(temp_res);
+
         int32_t *curr_out_data_cnx = out_data_cnx;
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+
             int curr_idx = cnt_row + cnt_col * n_rows;
-            out_data[curr_idx] = prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
+            out_data[curr_idx] = prepareAndProcessOutData(out_data_cnx, n_red_per_elem / 2);
+
+//            std::cout << "out_data[" << cnt_row << ", " << cnt_col << "] = " <<
+//            out_data[curr_idx] << std::endl;
+//            std::cout << "===========" << std::endl;
 
             // Hermitian matrix => a_ij = conj(a_ji);
             out_data[cnt_col + cnt_row * n_rows] =
@@ -194,64 +212,37 @@ namespace gr {
           }
         }
 
-//        for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-//          // Only elements higher or equal than the main diagonal
-//          for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
-//            // TODO maybe better with real assignation; this destroys and
-//            // creates new elements with this value
-//            row_nr.assign(vector_array_size, cnt_row);
-//            col_nr.assign(vector_array_size, cnt_col);
-//
-//            connex->writeDataToArray(row_nr.data(), 1, 1022);
-//            connex->writeDataToArray(col_nr.data(), 1, 1023);
-//
-//            int result = executeLocalKernel(connex, autocorrelation_kernel);
-//            if (result) {
-//              return (output_matrices);
-//            }
-//
-//            connex->readMultiReduction(n_red_per_elem, out_data_cnx);
-//
-//            // process out data; consider out array stored column-first
-//            int curr_idx = cnt_row + cnt_col * n_rows;
-//            out_data[curr_idx] =
-//              prepareAndProcessOutData(out_data_cnx, n_red_per_elem);
-//            // Hermitian matrix => a_ij = conj(a_ji);
-//            out_data[cnt_col + cnt_row * n_rows] =
-//              gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
-//          }
-//        }
 
         // Averaging results
         // TODO: check if it's faster to use arma here
-        if (d_avg_method) {
-          std::complex<float> two_c = (2.0, 2.0);
-          std::vector<std::vector<gr_complex>> refl_matrix;
-          refl_matrix.resize(n_rows);
-
-          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            refl_matrix[cnt_row].resize(n_rows);
-
-            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
-              int idx_row = n_rows - 1 - cnt_row;
-              int idx_col = n_rows - 1 - cnt_col;
-              int idx = idx_row + idx_col * n_rows;
-
-              // Divide the initial results by 2
-              out_data[idx] = out_data[idx] / two_c;
-
-              // form reflection matrix
-              refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
-            }
-          }
-
-          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
-              int idx = cnt_row + cnt_col * n_rows;
-              out_data[idx] += refl_matrix[cnt_row][cnt_col];
-            }
-          }
-        } // end loop averaging
+//        if (d_avg_method) {
+//          std::complex<float> two_c = (2.0, 2.0);
+//          std::vector<std::vector<gr_complex>> refl_matrix;
+//          refl_matrix.resize(n_rows);
+//
+//          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+//            refl_matrix[cnt_row].resize(n_rows);
+//
+//            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
+//              int idx_row = n_rows - 1 - cnt_row;
+//              int idx_col = n_rows - 1 - cnt_col;
+//              int idx = idx_row + idx_col * n_rows;
+//
+//              // Divide the initial results by 2
+//              out_data[idx] = out_data[idx] / two_c;
+//
+//              // form reflection matrix
+//              refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
+//            }
+//          }
+//
+//          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+//            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
+//              int idx = cnt_row + cnt_col * n_rows;
+//              out_data[idx] += refl_matrix[cnt_row][cnt_col];
+//            }
+//          }
+//        } // end loop averaging
       } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
@@ -304,6 +295,7 @@ namespace gr {
       for (int i = 0; i < n_elems_in; i+=2) {
         temp_real = static_cast<float>(in_data[i]) / factor_res;
         temp_imag = static_cast<float>(in_data[i + 1]) / factor_res;
+        std::cout << "data out of connex[" << i << "] = " << in_data[i] << " " << in_data[i+1] << std::endl;
 
         acc_real += temp_real;
         acc_imag += temp_imag;
@@ -344,24 +336,20 @@ namespace gr {
       const int &iterations_per_array)
     {
       BEGIN_KERNEL("autocorrelationKernel");
-        for (int cnt_line = 0; cnt_line < n_rows; cnt_line++) {
-          EXECUTE_IN_ALL(
-            R14 = cnt_line;
-            R30 = R14 * R0;             // go to line i
-            R30 = MULT_HIGH();
-          )
-          for (int cnt_col = cnt_line; cnt_col < n_rows; cnt_col++) {
+        for (int i = 0; i < n_rows; i++) {
+          for (int j = i; j < n_rows; j++) {
             EXECUTE_IN_ALL(
-              R14 = cnt_col;
-              R31 = R14 * R0;           // go to col j
-              R31 = MULT_HIGH();
+              R14 = i;
+              R15 = j;
+
+              R30 = R14 * R0;             // go to line i
+              R31 = R15 * R0;           // go to col j
             )
 
             REPEAT_X_TIMES(iterations_per_array);
               EXECUTE_IN_ALL(
                 R1 = LS[R30];
                 R2 = LS[R31];
-
                 R3 = R1 * R2;
                 R3 = MULT_HIGH();       // re1 * re2, im1 * im2
 
