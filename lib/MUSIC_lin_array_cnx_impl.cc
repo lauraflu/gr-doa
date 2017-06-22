@@ -377,29 +377,6 @@ namespace gr {
       }
     }
 
-    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-      uint16_t *out_arr, const cx_fmat &in_data, const int arr_to_prepare,
-      const int arr_to_start)
-    {
-      // in_data is a complex matrix whose columns represent an array to be
-      // multiplied with the matrix and has a number of pspectrum_len columns of
-      // such arrays. Therefore, it's a matrix of size (d_num_ant_ele x
-      // pspectrum_len), aka (arr_size x nr_arrays)
-
-      int idx_cnx = 0;
-
-      for (int j = arr_to_start; j < arr_to_start + arr_to_prepare; j++) { // iterate through arrays
-        // Each array has to be multiplied with each column of the matrix, so we
-        // store each array a number of arr_size consecutively
-        for (int k = 0; k < arr_size; k++) {
-          for (int i = 0; i < arr_size; i++) { // iterate through elements of array
-            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
-            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
-          }
-        }
-      }
-    }
-
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
       uint16_t *out_mat, const cx_fmat &in_mat)
     {
