@@ -96,21 +96,21 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-        std::cout << "Parameters: " << std::endl;
-        std::cout << "===========================================" << std::endl;
-        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-
-        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-        std::cout << "size_red_block: " << size_red_block << std::endl;
-        std::cout << "padding: " << padding << std::endl;
+//        std::cout << "Parameters: " << std::endl;
+//        std::cout << "===========================================" << std::endl;
+//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+//
+//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+//        std::cout << "size_red_block: " << size_red_block << std::endl;
+//        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -128,7 +128,7 @@ namespace gr {
           std::cout << e << std::endl;
         }
 
-        executeLocalKernel(connex, init_kernel_name.c_str());
+        executeLocalKernel(connex, "initKernel");
 
         int size_of_padding = (nr_arrays / arr_per_LS) * padding;
         // Allocate memory for the data that will be passed to the ConnexArray
@@ -309,7 +309,7 @@ namespace gr {
       if (mat_size_c <= vector_array_size) {
         // At least one matrix in the LS
         // Use kernels for smaller arrays
-        init_kernel_name = "initKernel";
+        init_kernel_name = "initIndex";
         mult_kernel_name = "multiplyArrMatKernel";
 
         // ***See how many whole matrices fit in a LS
@@ -331,7 +331,7 @@ namespace gr {
       } else {
         // Split matrix in chunks
         // Use kernels for larger arrays
-        init_kernel_name = "initKernelLarge";
+        init_kernel_name = "initIndexLarge";
         mult_kernel_name = "multiplyArrMatKernelLarge";
 
         // ***See how many whole matrix columns fit in a LS
@@ -437,7 +437,6 @@ namespace gr {
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
 
           out_data(i, j) = gr_complex(temp0, temp1);
-//          std::cout << "arr " << i << ": " << out_data(i, j) << std::endl;
         }
       }
     }
@@ -453,10 +452,6 @@ namespace gr {
 
       for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
-//        for (int i = 0; i < arr_size; i++) {
-//          std::cout << "array " << k << ": " << temp_res(j, i) << ", ";
-//        }
-//        std::cout << std::endl;
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
     }
@@ -496,7 +491,6 @@ namespace gr {
     {
       BEGIN_KERNEL("initIndex");
         EXECUTE_IN_ALL(
-          R25 = 0;                      // reset array LS index
           R2 = LS[R26];                 // load input matrix
         )
       END_KERNEL("initIndex");
@@ -508,8 +502,7 @@ namespace gr {
       BEGIN_KERNEL("multiplyArrMatKernel");
         for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
-            R25 = 0;
-            R2 = LS[R26];                 // load input matrix
+            R25 = 0;                      // reset array LS index
             R1 = LS[R25];               // load input array
             R29 = INDEX;                // Used later to select PEs for reduction
             R27 = size_reduction_block;        // Used to select blocks for reduction
