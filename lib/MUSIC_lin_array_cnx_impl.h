@@ -75,28 +75,15 @@ namespace gr {
       // Nr of arrays are processed in a chunk
       int arr_per_chunk;
       int nr_chunks;
+      int LS_per_mat;
+      int LS_per_chunk;
 
       // Nr of reductions to read in a chunk
       int red_per_chunk;
 
-//      // How many arrays are processed at once on the Connexarray
-//      int arr_process_at_once;
-//      // How many LSs are used in a kernel execution
-//      const int process_at_once = 128;
-//
-
       // The total number of the arrays that will be multiplied by the same
       // matrix
       int nr_arrays;
-
-//      // The total number of multiplications will be processed in chunks on the
-//      // kernels.
-//      // How many of the total number of the arrays can be processed in an
-//      // iteration on the ConnexArray kernel
-//      int arr_per_chunk;
-//      int nr_chunks;
-//      int nr_elem_calc;
-//      int nr_elem_calc_c;
 
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
@@ -164,7 +151,7 @@ namespace gr {
     void splitArraysInChunks(int &arr_per_chunk_, int &nr_chunks_,
       const int &LS_for_mat_, const int &nr_arrays_, const int &arr_per_LS_);
 
-    void calculateChunkingParameters(int &LS_per_iteration, int &LS_per_mat,
+    void calculateChunkingParameters(
       int &nr_red_blocks, int &size_red_block, int &nr_red_last_mat_chunk);
 
      public:
