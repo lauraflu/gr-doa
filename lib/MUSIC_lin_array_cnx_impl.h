@@ -103,8 +103,8 @@ namespace gr {
 
       // Defines the processing kernel
       void multiply_kernel(
-        int process_at_once,
-        int size_of_block,
+        int LS_per_iteration,
+        int size_reduction_block,
         int blocks_to_reduce);
 
       /* \brief Prepares (scales and converts to uint16_t) the elements of an

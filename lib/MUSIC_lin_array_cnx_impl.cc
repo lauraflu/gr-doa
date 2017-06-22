@@ -294,10 +294,9 @@ namespace gr {
         nr_repeat_arr = arr_size; // repeat for each column in the array
         mat_cols_per_LS = arr_size;
 
-        // In a LS we have can multiply as many arrays as matrices in that LS
         arr_per_LS = nr_repeat_mat;
 
-        LS_per_mat = 1; // Just a LS is used for storing the matrix
+        LS_per_mat = 1;
 
         // ***Find maximum array chunk
         splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
@@ -308,7 +307,7 @@ namespace gr {
       } else {
         // Split matrix in chunks
 
-        // ***See how many whole columns fit in a LS
+        // ***See how many whole matrix columns fit in a LS
         int mat_col_size = arr_size_c; // just an alias
         mat_cols_per_LS = vector_array_size / mat_col_size;
         padding = vector_array_size % mat_col_size;
@@ -324,7 +323,7 @@ namespace gr {
         nr_red_blocks_ = mat_cols_per_LS; // calculated per LS
 
         nr_repeat_arr = mat_cols_per_LS;
-        nr_repeat_mat = 0; // the matrix is stored only once over multiple LSs
+        nr_repeat_mat = 0; // set to zero to differentiate from the first case
 
         arr_per_LS = 1;
 
@@ -468,14 +467,14 @@ namespace gr {
     }
 
     void MUSIC_lin_array_cnx_impl::multiply_kernel(
-      int process_at_once, int size_of_block, int blocks_to_reduce)
+      int LS_per_iteration, int size_reduction_block, int blocks_to_reduce)
     {
       BEGIN_KERNEL("multiplyArrMatKernel");
-        for (int i = 0; i < process_at_once; i++) {
+        for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
             R1 = LS[R25];               // load input array
             R29 = INDEX;                // Used later to select PEs for reduction
-            R27 = size_of_block;        // Used to select blocks for reduction
+            R27 = size_reduction_block;        // Used to select blocks for reduction
 
             R3 = R1 * R2;               // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
