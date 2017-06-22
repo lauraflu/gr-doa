@@ -55,6 +55,8 @@ namespace gr {
       int nout_items_total = 0;
 
       ConnexMachine *connex;
+      std::string init_kernel_name;
+      std::string mult_kernel_name;
 
       // Variables for easier management of chunks and sizes
       const int vector_array_size = 128;
@@ -98,6 +100,7 @@ namespace gr {
       // Defines the init kernel
       void init_kernel(int size_of_block);
 
+      // Kernels for processing with small data
       // Defines the init kernel
       void init_index(void);
 
@@ -106,6 +109,17 @@ namespace gr {
         int LS_per_iteration,
         int size_reduction_block,
         int blocks_to_reduce);
+
+      // Kernels for processing with large data
+      void init_index_large(void);
+
+      void multiply_kernel_large(
+        int LS_per_iteration,
+        int LS_per_mat,
+        int size_reduction_block,
+        int blocks_to_reduce,
+        int blocks_to_reduce_last);
+
 
       /* \brief Prepares (scales and converts to uint16_t) the elements of an
        *        array which will be stored in the ConnexArray.
