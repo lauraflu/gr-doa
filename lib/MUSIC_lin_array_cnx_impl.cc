@@ -96,11 +96,26 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
+        std::cout << "Parameters: " << std::endl;
+        std::cout << "===========================================" << std::endl;
+        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+
+        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+        std::cout << "size_red_block: " << size_red_block << std::endl;
+
         // Create the kernel
         try {
           init_kernel(size_red_block);
 
-          if (mat_size_c < vector_array_size) {
+          if (mat_size_c <= vector_array_size) {
             init_index();
             multiply_kernel(LS_per_chunk, size_red_block, nr_red_blocks);
           } else {
@@ -291,7 +306,7 @@ namespace gr {
     {
       // ***Check if we have at least one whole matrix in a LS or if the matrix is
       // split across multiple LSs
-      if (mat_size_c < vector_array_size) {
+      if (mat_size_c <= vector_array_size) {
         // At least one matrix in the LS
         // Use kernels for smaller arrays
         init_kernel_name = "initKernel";
@@ -369,10 +384,11 @@ namespace gr {
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
           }
         }
-        if ((j + 1) % arr_per_LS == 0) {
-          // Must add padding before the next element
-          idx_cnx += padding;
-        }
+        if (padding != 0)
+          if ((j + 1) % arr_per_LS == 0) {
+            // Must add padding before the next element
+            idx_cnx += padding;
+          }
       }
     }
 
@@ -421,6 +437,7 @@ namespace gr {
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
 
           out_data(i, j) = gr_complex(temp0, temp1);
+//          std::cout << "arr " << i << ": " << out_data(i, j) << std::endl;
         }
       }
     }
@@ -436,6 +453,10 @@ namespace gr {
 
       for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
+//        for (int i = 0; i < arr_size; i++) {
+//          std::cout << "array " << k << ": " << temp_res(j, i) << ", ";
+//        }
+//        std::cout << std::endl;
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
     }
