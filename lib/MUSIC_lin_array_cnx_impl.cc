@@ -338,7 +338,7 @@ namespace gr {
     }
 
     /*===================================================================
-     * Method thats prepare in/out data to work with the ConnexArray
+     * Method that prepares in/out data to work with the ConnexArray
      * Prepare = scale and cast
      *===================================================================*/
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
