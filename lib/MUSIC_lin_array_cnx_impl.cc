@@ -110,6 +110,7 @@ namespace gr {
         std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
         std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
         std::cout << "size_red_block: " << size_red_block << std::endl;
+        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -133,7 +134,7 @@ namespace gr {
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-            (malloc((nr_arrays * arr_size_c * arr_size + size_of_padding) * sizeof(uint16_t)));
+            (malloc((nr_arrays * arr_size_c * nr_repeat_arr + size_of_padding) * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
             (malloc(LS_per_mat * vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
@@ -242,7 +243,7 @@ namespace gr {
 
         // Pointers to the current and the next input chunks for the CnxArr
         uint16_t *arr_curr_cnx = in0_i, *mat_cnx = in1_i;
-        int32_t *res_curr_cnx = NULL;
+        int32_t *res_curr_cnx = res_mult;
 
         // Indices of next, past and current array chunks in matrix format
         int idx_curr_chunk = 0;
@@ -251,11 +252,9 @@ namespace gr {
         prepareInMatConnex(mat_cnx, U_N_sq);
         connex->writeDataToArray(mat_cnx, LS_per_mat, 900);
 
-        executeLocalKernel(connex, "initIndex");
+        executeLocalKernel(connex, init_kernel_name.c_str());
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
-          res_curr_cnx = &res_mult[cnt_chunk * red_per_chunk];
-
           connex->writeDataToArray(arr_curr_cnx, LS_per_chunk, 0);
 
           int res = executeLocalKernel(connex, mult_kernel_name.c_str());
@@ -269,6 +268,7 @@ namespace gr {
           // Increment for next chunk
           arr_curr_cnx += LS_per_chunk * vector_array_size;
           idx_curr_chunk += arr_per_chunk;
+          res_curr_cnx += red_per_chunk;
         } // end loop for each chunk
 
 
@@ -508,6 +508,8 @@ namespace gr {
       BEGIN_KERNEL("multiplyArrMatKernel");
         for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
+            R25 = 0;
+            R2 = LS[R26];                 // load input matrix
             R1 = LS[R25];               // load input array
             R29 = INDEX;                // Used later to select PEs for reduction
             R27 = size_reduction_block;        // Used to select blocks for reduction
