@@ -96,21 +96,21 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-//        std::cout << "Parameters: " << std::endl;
-//        std::cout << "===========================================" << std::endl;
-//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-//
-//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-//        std::cout << "size_red_block: " << size_red_block << std::endl;
-//        std::cout << "padding: " << padding << std::endl;
+        std::cout << "Parameters: " << std::endl;
+        std::cout << "===========================================" << std::endl;
+        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+
+        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+        std::cout << "size_red_block: " << size_red_block << std::endl;
+        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -452,6 +452,10 @@ namespace gr {
 
       for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
+
+        std::cout << "idx " << k << ", angle: " << k * 0.1757 << ": " <<
+        temp_out.real() / factor_res << std::endl;
+
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
     }
@@ -502,10 +506,10 @@ namespace gr {
       BEGIN_KERNEL("multiplyArrMatKernel");
         for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
-            R25 = 0;                      // reset array LS index
+            R25 = 0;                    // reset array LS index
             R1 = LS[R25];               // load input array
             R29 = INDEX;                // Used later to select PEs for reduction
-            R27 = size_reduction_block;        // Used to select blocks for reduction
+            R27 = size_reduction_block; // Used to select blocks for reduction
 
             R3 = R1 * R2;               // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
@@ -524,6 +528,7 @@ namespace gr {
 
             R10 = R9 & R30;
             R7 = (R10 == R30);
+            NOP;
           )
 
           EXECUTE_WHERE_EQ(             // Only in the odd PEs
@@ -536,6 +541,7 @@ namespace gr {
           REPEAT_X_TIMES(blocks_to_reduce);
             EXECUTE_IN_ALL(
               R7 = (R29 < R27);         // Select only blocks of PEs at a time
+              NOP;
             )
             EXECUTE_WHERE_LT(
               R29 = 129;                // A random number > 128 so these PEs won't be
@@ -554,7 +560,6 @@ namespace gr {
         }
       END_KERNEL("multiplyArrMatKernel");
     }
-
 
     void MUSIC_lin_array_cnx_impl::init_index_large(void)
     {
