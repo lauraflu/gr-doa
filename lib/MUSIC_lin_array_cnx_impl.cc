@@ -278,7 +278,6 @@ namespace gr {
           ls_imag_arr += LS_per_chunk;
         } // end loop for each chunk
 
-
         fvec keep_out = out_vec;
         float keep_out_max = out_vec.max();
         uword keep_idx_max = out_vec.index_max();
@@ -504,7 +503,7 @@ namespace gr {
       float temp0, temp1;
       int idx_out = idx_to_start;
 
-// TODO: adjust for when the results are spread over more than two reductions
+      // TODO: adjust for when the results are spread over more than two reductions
       for (int i = 0; i < nr_elem; i+=2) {
         temp0 = (static_cast<float>(raw_out_data[i]) / factor_final);
         temp1 = (static_cast<float>(raw_out_data[i + 1]) / factor_final);
@@ -529,14 +528,14 @@ namespace gr {
       return 0;
     }
 
-    void MUSIC_lin_array_cnx_impl::init_chained(int size_of_block)
+    void MUSIC_lin_array_cnx_impl::init_chained(int size_red_block)
     {
       BEGIN_KERNEL("initKernelChained");
         EXECUTE_IN_ALL(
           R26 = 900;            // From where to start reading the matrix
           R30 = 1;
           R31 = 0;
-          R28 = size_of_block;  // dimension of the blocks on which reduction is
+          R28 = size_red_block;  // dimension of the blocks on which reduction is
                                 // performed at once
           R9 = INDEX;           // Select only the odd PEs
         )

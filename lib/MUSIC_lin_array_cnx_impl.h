@@ -48,19 +48,12 @@ namespace gr {
 
       cx_fmat res_temp;
 
-      /*====================================================================
-       * CONNEX KERNEL RELATED
-       *===================================================================*/
-
       int nout_items_total = 0;
 
-      ConnexMachine *connex;
-      std::string init_index_name;
-      std::string mult_kernel_name;
+      /*===================================================================
+       * VARIABLES FOR CHUNKING
+       *==================================================================*/
 
-      // Variables for easier management of chunks and sizes
-      const int vector_array_size = 128;
-      const int local_storage_size = 1024;
       int arr_size, mat_size;
       int arr_size_c, mat_size_c;
 
@@ -94,19 +87,38 @@ namespace gr {
       // Factors for scaling the input data for the ConnexArray
       uint32_t factor_mult1, factor_mult2, factor_res, factor_final;
 
+      /*===================================================================
+       * KERNEL RELATED
+       *==================================================================*/
+      // Keeps the Connexarray instance
+      ConnexMachine *connex;
+
+      // Keep the kernels to be executed
+      std::string init_index_name;
+      std::string mult_kernel_name;
+
+      // Constants realted to the ConnexArray configuration used
+      const int vector_array_size = 128;
+      const int local_storage_size = 1024;
+
       // Executes the kernel
       int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
 
-      // Kernels for chained mult
       // Defines the init kernel
-      void init_chained(int size_of_block);
+      void init_chained(int size_red_block);
+
       // Defines the init kernel
       void init_index_chained(void);
+
       // Defines the processing kernel
       void multiply_chained(
         int process_at_once,
         int size_of_block,
         int blocks_to_reduce);
+
+      /*===================================================================
+       * FUNCTIONS FOR PREPARING THE I/O DATA
+       *==================================================================*/
 
       void prepareInArrConnex(
         uint16_t *out_arr,
