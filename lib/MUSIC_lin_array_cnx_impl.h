@@ -156,11 +156,9 @@ namespace gr {
       void prepareOutDataConnex(cx_fmat &out_data, const int32_t *raw_out_data);
 
       void processOutData(
-        fvec &out_vec,
-        const int idx_to_start,
-        cx_fmat &temp_res,
-        cx_fmat &in_arr,
-        const int arr_to_start);
+        fvec &out_vec, const int &idx_to_start,
+        cx_fmat &temp_res, cx_fmat &in_arr,
+        const int &arr_to_start, const int &nr_arr_to_process);
 
     void splitArraysInChunks(int &arr_per_chunk_, int &nr_chunks_,
       const int &LS_for_mat_, const int &nr_arrays_, const int &arr_per_LS_);
