@@ -96,21 +96,21 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-//        std::cout << "Parameters: " << std::endl;
-//        std::cout << "===========================================" << std::endl;
-//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-//
-//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-//        std::cout << "size_red_block: " << size_red_block << std::endl;
-//        std::cout << "padding: " << padding << std::endl;
+        std::cout << "Parameters: " << std::endl;
+        std::cout << "===========================================" << std::endl;
+        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+
+        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+        std::cout << "size_red_block: " << size_red_block << std::endl;
+        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -333,9 +333,9 @@ namespace gr {
         nr_red_blocks_ = nr_repeat_mat * arr_size; // calculated per LS
         nr_red_last_mat_chunk_ = 0;
 
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
         // 2 * => because we have one reduction for the real part and one for the imaginary
         red_per_chunk = 2 * nr_red_blocks_ * LS_per_chunk;
-        LS_per_chunk = arr_per_chunk / arr_per_LS;
       } else {
         // Split matrix in chunks
         // Use kernels for larger arrays
