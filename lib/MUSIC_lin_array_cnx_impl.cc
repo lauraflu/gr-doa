@@ -69,29 +69,6 @@ namespace gr {
       , arr_size(num_ant_ele)
       , nr_arrays(pspectrum_len)
     {
-//        int arrays_per_LS;
-//        if (num_ant_ele <= 8) {
-//          arrays_per_LS = vector_array_size / mat_size_c;
-//          arr_process_at_once = arrays_per_LS * process_at_once;
-//
-//          if (arr_process_at_once > nr_arrays) {
-//            std::cout << "There are more arrays in a processing than arrays available!" << std::endl;
-//            std::cout << "Choose a number smaller than " << nr_arrays << std::endl;
-//            return;
-//          }
-//
-//        } else {
-//          arrays_per_LS = 1;
-//          std::cout << "Not implemented yet!" << std::endl;
-//        }
-//
-//        arr_per_chunk = process_at_once * arrays_per_LS;
-//        nr_chunks = nr_arrays / arr_per_chunk;
-//        // By calculated element we mean one element from an output array that
-//        // is the result of an arr * mat multiplication
-//        nr_elem_calc = process_at_once * (vector_array_size / mat_size_c);
-//        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
-
         // Create ConnexMachine instance
         try {
           connex = new ConnexMachine(distributionFIFO,
@@ -106,11 +83,6 @@ namespace gr {
         factor_mult2 = 1 << 15;
         factor_res = 1 << 14;
         factor_final = 1 << 13;
-
-//        // Number of blocks to reduce in a single LS
-//        const int blocks_to_reduce = vector_array_size / mat_size_c;
-//        const int size_of_block = mat_size_c;
-
 
         // Variables calculated based on the input parameters
         mat_size = arr_size * arr_size;
@@ -140,7 +112,6 @@ namespace gr {
         std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
         std::cout << "size_red_block: " << size_red_block << std::endl;
         std::cout << "padding: " << padding << std::endl;
-
 
         // Create the kernel
         try {
@@ -274,9 +245,6 @@ namespace gr {
         int32_t *res_cnx = NULL;
 
         uint16_t *arr_curr_real = arr_real, *arr_curr_imag = arr_imag;
-
-        // Indices of array in matrix format
-//        int idx_arr = 0;
 
         // Prepare & write matrix for storage in Connex
         prepareInMatConnex(mat_cnx, U_N_sq);
@@ -453,25 +421,6 @@ namespace gr {
      * Prepare = scale and cast
      *===================================================================*/
     // Prepare the whole array
-//    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-//      uint16_t *out_arr, const cx_fmat &in_data)
-//    {
-//      // See how many columns of the matrix fit in one LS and store each array
-//      // that many times.
-//      int nr_repeat_arr = (mat_size_c > vector_array_size) ? 1 : arr_size;
-//
-//      int idx_cnx = 0;
-//
-//      for (int j = 0; j < nr_arrays; j++) { // for each array
-//        for (int k = 0; k < nr_repeat_arr; k++) { // store each array this many times
-//          for (int i = 0; i < arr_size; i++) {
-//            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
-//            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
-//          }
-//        }
-//      }
-//    }
-
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
       uint16_t *out_arr, const cx_fmat &in_data, const int &nr_arrays_prepare)
     {
@@ -547,25 +496,6 @@ namespace gr {
         }
       }
     }
-
-//    void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
-//      uint16_t *out_mat, const cx_fmat &in_mat)
-//    {
-//      // Only one LS will contain the matrix => See how many times we have to
-//      // repeat it to store it in the one LS
-//      const int nr_repeats = vector_array_size / mat_size_c;
-//      int idx_cnx = 0;
-//
-//      for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
-//        // Store column-first
-//        for (int j = 0; j < arr_size; j++) {
-//          for (int i = 0; i < arr_size; i++) {
-//            out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
-//            out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
-//          }
-//        }
-//      }
-//    }
 
     void MUSIC_lin_array_cnx_impl::prepareProcessOutDataConnex(
       fvec &out_data, const int &idx_to_start, const int32_t *raw_out_data,

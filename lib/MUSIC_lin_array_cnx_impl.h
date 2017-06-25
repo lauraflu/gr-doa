@@ -86,24 +86,6 @@ namespace gr {
       // matrix
       int nr_arrays;
 
-//      // How many arrays are processed at once on the Connexarray
-//      int arr_process_at_once;
-//      // How many LSs are used in a kernel execution
-//      int process_at_once = 128;
-//
-//      // The total number of the arrays that will be multiplied by the same
-//      // matrix
-//      int nr_arrays;
-//
-//      // The total number of multiplications will be processed in chunks on the
-//      // kernels.
-//      // How many of the total number of the arrays can be processed in an
-//      // iteration on the ConnexArray kernel
-//      int arr_per_chunk;
-//      int nr_chunks;
-//      int nr_elem_calc;
-//      int nr_elem_calc_c;
-
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
       int32_t *res_mult;
