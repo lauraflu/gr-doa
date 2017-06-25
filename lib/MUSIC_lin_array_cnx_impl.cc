@@ -97,21 +97,21 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-        std::cout << "Parameters: " << std::endl;
-        std::cout << "===========================================" << std::endl;
-        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-
-        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-        std::cout << "size_red_block: " << size_red_block << std::endl;
-        std::cout << "padding: " << padding << std::endl;
+//        std::cout << "Parameters: " << std::endl;
+//        std::cout << "===========================================" << std::endl;
+//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+//
+//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+//        std::cout << "size_red_block: " << size_red_block << std::endl;
+//        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -278,35 +278,7 @@ namespace gr {
           ls_imag_arr += LS_per_chunk;
         } // end loop for each chunk
 
-        fvec keep_out = out_vec;
-        float keep_out_max = out_vec.max();
-        uword keep_idx_max = out_vec.index_max();
         out_vec = 10.0 * log10(out_vec/out_vec.max());
-
-
-//        gr_complex Q_temp;
-//        fvec exp_vec(d_pspectrum_len);
-//        for (int ii = 0; ii < d_pspectrum_len; ii++)
-//        {
-//          Q_temp = as_scalar(d_vii_matrix_trans.row(ii)*U_N_sq*d_vii_matrix.col(ii));
-//          exp_vec(ii) = Q_temp.real();
-//          out_vec(ii) = 1.0/Q_temp.real();
-//        }
-//
-//        std::cout << "max expected at index " << exp_vec.index_max() << ": " <<
-//        exp_vec.max() << ", got at index " << keep_idx_max << ": " <<
-//        keep_out_max << std::endl;
-//
-//
-//        out_vec = 10.0*log10(out_vec/out_vec.max());
-//        for (int ii = 0; ii < d_pspectrum_len; ii++)
-//        {
-//          float angle = ii * 0.3514;
-//          std::cout << "angle: " << angle << ", index: " << ii << ", expected: "
-//          << exp_vec(ii) << ", got: " << keep_out(ii);
-//          std::cout << std::endl;
-//        }
-
       }
 
       nout_items_total += noutput_items;
@@ -505,11 +477,17 @@ namespace gr {
 
       // TODO: adjust for when the results are spread over more than two reductions
       for (int i = 0; i < nr_elem; i+=2) {
-        temp0 = (static_cast<float>(raw_out_data[i]) / factor_final);
-        temp1 = (static_cast<float>(raw_out_data[i + 1]) / factor_final);
+        temp0 = static_cast<float>(raw_out_data[i]);
+        temp1 = static_cast<float>(raw_out_data[i + 1]);
 
         temp0 += temp1;
-        out_data(idx_out++) = 1.0 / abs(temp0);
+        temp0 = temp0 / factor_final;
+
+        // workaround to avoid dividing by zero
+        if (temp0 == 0)
+          temp0 = 0.00001;
+        out_data(idx_out) = 1.0 / abs(temp0);
+        idx_out++;
       }
     }
 
@@ -546,25 +524,28 @@ namespace gr {
     {
       BEGIN_KERNEL("initIndexChained");
         EXECUTE_IN_ALL(
-          R25 = 0;                // Reset the array index
-          R24 = 256;              // Reset the real part of the final array index
-          R23 = 512;              // Reset the imag part of the final array index
           R2 = LS[R26];           // Load new matrix
         )
       END_KERNEL("initIndexChained");
     }
 
-    void MUSIC_lin_array_cnx_impl::multiply_chained(int process_at_once,
-      int size_of_block, int blocks_to_reduce)
+    void MUSIC_lin_array_cnx_impl::multiply_chained(int LS_per_execution,
+      int size_red_block, int nr_red_blocks)
     {
       BEGIN_KERNEL("multChained");
-        for (int i = 0; i < process_at_once; i++) {
+        EXECUTE_IN_ALL(
+          R25 = 0;                // Reset the array index
+          R24 = 256;              // Reset the real part of the final array index
+          R23 = 512;              // Reset the imag part of the final array index
+        )
+
+        for (int i = 0; i < LS_per_execution; i++) {
           EXECUTE_IN_ALL(
             R1 = LS[R25];         // Load input array
             R15 = LS[R24];        // Load real part of the final array
             R16 = LS[R23];        // Load imag part of the final array
             R29 = INDEX;          // Used later to select PEs for reduction
-            R27 = size_of_block;  // Used to select blocks for reduction
+            R27 = size_red_block; // Used to select blocks for reduction
 
             R16 = R31 - R16;      // Invert imag part of the final array
 
@@ -585,6 +566,7 @@ namespace gr {
 
             R10 = R9 & R30;
             R7 = (R10 == R30);
+            NOP;
           )
 
           EXECUTE_WHERE_EQ(       // Only in the odd PEs
@@ -605,9 +587,10 @@ namespace gr {
 
           // We reduce blocks of size mat_size_c; Half of the final result is in
           // R3 and the other half is in R4
-          REPEAT_X_TIMES(blocks_to_reduce);
+          REPEAT_X_TIMES(nr_red_blocks);
             EXECUTE_IN_ALL(
               R7 = (R29 < R27);   // Select only blocks of PEs at a time
+              NOP;
             )
             EXECUTE_WHERE_LT(
               R29 = 129;          // A random number > 128 so these PEs won't be

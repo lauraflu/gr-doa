@@ -112,9 +112,9 @@ namespace gr {
 
       // Defines the processing kernel
       void multiply_chained(
-        int process_at_once,
-        int size_of_block,
-        int blocks_to_reduce);
+        int LS_per_execution,
+        int size_red_block,
+        int nr_red_blocks);
 
       /*===================================================================
        * FUNCTIONS FOR PREPARING THE I/O DATA
