@@ -258,6 +258,9 @@ namespace gr {
           connex->writeDataToArray(arr_curr_cnx, LS_per_chunk, 0);
 
           int res = executeLocalKernel(connex, mult_kernel_name.c_str());
+          if (res) {
+            std::cout << "Error in kernel execution!" << std::endl;
+          }
 
           connex->readMultiReduction(red_per_chunk, res_curr_cnx);
 
@@ -328,6 +331,10 @@ namespace gr {
         // ***Calculate parameters per kernel
         nr_red_blocks_ = nr_repeat_mat * arr_size; // calculated per LS
         nr_red_last_mat_chunk_ = 0;
+
+        // 2 * => because we have one reduction for the real part and one for the imaginary
+        red_per_chunk = 2 * nr_red_blocks_ * LS_per_chunk;
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
       } else {
         // Split matrix in chunks
         // Use kernels for larger arrays
@@ -359,12 +366,11 @@ namespace gr {
 
         // ***Find maximum array chunk
         splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
+
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
+        red_per_chunk = 2 * nr_red_blocks_ * LS_per_mat * LS_per_chunk;
       }
       size_red_block_ = arr_size_c;
-      LS_per_chunk = arr_per_chunk / arr_per_LS;
-
-      // 2 * => because we have one reduction for the real part and one for the imaginary
-      red_per_chunk = 2 * nr_red_blocks_ * LS_per_chunk;
     }
 
     /*===================================================================
@@ -453,9 +459,6 @@ namespace gr {
       for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
 
-//        std::cout << "idx " << k << ", angle: " << k * 0.1757 << ": " <<
-//        temp_out.real() / factor_res << std::endl;
-
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
     }
@@ -503,6 +506,7 @@ namespace gr {
     void MUSIC_lin_array_cnx_impl::multiply_kernel(
       int LS_per_iteration, int size_reduction_block, int blocks_to_reduce)
     {
+      // TODO: maybe make LS_per_iteration loop with repeat
       BEGIN_KERNEL("multiplyArrMatKernel");
         EXECUTE_IN_ALL(
           R25 = 0;                        // reset array LS index
@@ -578,8 +582,15 @@ namespace gr {
       blocks_to_reduce, int blocks_to_reduce_last)
     {
       BEGIN_KERNEL("multiplyArrMatKernelLarge");
+        EXECUTE_IN_ALL(
+          R25 = 0;                        // reset array LS index
+        )
+
         for (int i = 0; i < LS_per_iteration; i++) { // for each array in chunk
-          R1 = LS[R25];                   // load input array
+          EXECUTE_IN_ALL(
+            R1 = LS[R25];                   // load input array
+            R26 = 900;
+          )
 
           // For each matrix chunk except the last
           for (int j = 0; j < LS_per_mat - 1; j++) {
@@ -634,7 +645,7 @@ namespace gr {
             EXECUTE_IN_ALL(
               R26 = R26 + R30;            // Go to the next LS with mat
             )
-          }
+          } // end for each column of mat
 
           // The last matrix chunk may be incomplete, so we treat it differently
           // to avoid doing unnecessary reductions
@@ -685,10 +696,10 @@ namespace gr {
           END_REPEAT;
           // End processing for last matrix chunk
 
-          EXECUTE_IN_ALL(
+        EXECUTE_IN_ALL(
             R25 = R25 + R30;              // Go to the next array
           )
-        }
+        } // end for each array
       END_KERNEL("multiplyArrMatKernelLarge");
     }
 
