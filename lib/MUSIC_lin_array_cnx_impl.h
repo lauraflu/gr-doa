@@ -55,7 +55,7 @@ namespace gr {
       int nout_items_total = 0;
 
       ConnexMachine *connex;
-      std::string init_kernel_name;
+      std::string init_index_name;
       std::string mult_kernel_name;
 
       // Variables for easier management of chunks and sizes

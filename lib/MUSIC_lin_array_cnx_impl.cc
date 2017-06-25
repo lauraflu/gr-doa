@@ -96,21 +96,21 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-        std::cout << "Parameters: " << std::endl;
-        std::cout << "===========================================" << std::endl;
-        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-
-        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-        std::cout << "size_red_block: " << size_red_block << std::endl;
-        std::cout << "padding: " << padding << std::endl;
+//        std::cout << "Parameters: " << std::endl;
+//        std::cout << "===========================================" << std::endl;
+//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+//
+//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+//        std::cout << "size_red_block: " << size_red_block << std::endl;
+//        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -252,7 +252,7 @@ namespace gr {
         prepareInMatConnex(mat_cnx, U_N_sq);
         connex->writeDataToArray(mat_cnx, LS_per_mat, 900);
 
-        executeLocalKernel(connex, init_kernel_name.c_str());
+        executeLocalKernel(connex, init_index_name.c_str());
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
           connex->writeDataToArray(arr_curr_cnx, LS_per_chunk, 0);
@@ -309,7 +309,7 @@ namespace gr {
       if (mat_size_c <= vector_array_size) {
         // At least one matrix in the LS
         // Use kernels for smaller arrays
-        init_kernel_name = "initIndex";
+        init_index_name = "initIndex";
         mult_kernel_name = "multiplyArrMatKernel";
 
         // ***See how many whole matrices fit in a LS
@@ -331,7 +331,7 @@ namespace gr {
       } else {
         // Split matrix in chunks
         // Use kernels for larger arrays
-        init_kernel_name = "initIndexLarge";
+        init_index_name = "initIndexLarge";
         mult_kernel_name = "multiplyArrMatKernelLarge";
 
         // ***See how many whole matrix columns fit in a LS
@@ -453,8 +453,8 @@ namespace gr {
       for (j = 0, k = arr_to_start; j < arr_per_chunk; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
 
-        std::cout << "idx " << k << ", angle: " << k * 0.1757 << ": " <<
-        temp_out.real() / factor_res << std::endl;
+//        std::cout << "idx " << k << ", angle: " << k * 0.1757 << ": " <<
+//        temp_out.real() / factor_res << std::endl;
 
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
@@ -504,9 +504,12 @@ namespace gr {
       int LS_per_iteration, int size_reduction_block, int blocks_to_reduce)
     {
       BEGIN_KERNEL("multiplyArrMatKernel");
+        EXECUTE_IN_ALL(
+          R25 = 0;                        // reset array LS index
+        )
+
         for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
-            R25 = 0;                    // reset array LS index
             R1 = LS[R25];               // load input array
             R29 = INDEX;                // Used later to select PEs for reduction
             R27 = size_reduction_block; // Used to select blocks for reduction
@@ -602,6 +605,7 @@ namespace gr {
 
               R10 = R9 & R30;
               R7 = (R10 == R30);
+              NOP;
             )
 
             EXECUTE_WHERE_EQ(             // Only in the odd PEs
@@ -614,6 +618,7 @@ namespace gr {
             REPEAT_X_TIMES(blocks_to_reduce);
               EXECUTE_IN_ALL(
                 R7 = (R29 < R27);         // Select only blocks of PEs at a time
+                NOP;
               )
               EXECUTE_WHERE_LT(
                 R29 = 129;                // A random number > 128 so these PEs won't be
