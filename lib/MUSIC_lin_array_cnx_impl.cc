@@ -96,21 +96,21 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-        std::cout << "Parameters: " << std::endl;
-        std::cout << "===========================================" << std::endl;
-        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-
-        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-        std::cout << "size_red_block: " << size_red_block << std::endl;
-        std::cout << "padding: " << padding << std::endl;
+//        std::cout << "Parameters: " << std::endl;
+//        std::cout << "===========================================" << std::endl;
+//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+//
+//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+//        std::cout << "size_red_block: " << size_red_block << std::endl;
+//        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -250,32 +250,24 @@ namespace gr {
 
         // Prepare & write matrix for storage in Connex
         prepareInMatConnex(mat_cnx, U_N_sq);
-std::cout << "1" << std::endl;
         connex->writeDataToArray(mat_cnx, LS_per_mat, 900);
 
-std::cout << "2" << std::endl;
         executeLocalKernel(connex, init_index_name.c_str());
-std::cout << "3" << std::endl;
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
           connex->writeDataToArray(arr_curr_cnx, LS_per_chunk, 0);
-std::cout << "4" << std::endl;
 
           int res = executeLocalKernel(connex, mult_kernel_name.c_str());
-std::cout << "5" << std::endl;
           if (res) {
             std::cout << "Error in kernel execution!" << std::endl;
           }
 
-//          for (int k = 0; k < 2; k++) {
-//            int temp_red_per_chunk = red_per_chunk / 2;
-            connex->readMultiReduction(red_per_chunk, res_curr_cnx);
+          connex->readMultiReduction(red_per_chunk, res_curr_cnx);
 
-            prepareOutDataConnex(res_temp, res_curr_cnx);
+          prepareOutDataConnex(res_temp, res_curr_cnx);
 
-            processOutData(out_vec, cnt_chunk * arr_per_chunk, res_temp,
-            d_vii_matrix, idx_curr_chunk, arr_per_chunk);
-//          }
+          processOutData(out_vec, cnt_chunk * arr_per_chunk, res_temp,
+          d_vii_matrix, idx_curr_chunk, arr_per_chunk);
 
           // Increment for next chunk
           arr_curr_cnx += LS_per_chunk * vector_array_size;
