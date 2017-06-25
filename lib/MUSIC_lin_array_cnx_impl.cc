@@ -69,33 +69,28 @@ namespace gr {
       , arr_size(num_ant_ele)
       , nr_arrays(pspectrum_len)
     {
-        // Variables calculated based on the input parameters
-        mat_size = arr_size * arr_size;
-        arr_size_c = arr_size * 2;
-        mat_size_c = mat_size * 2;
-
-        int arrays_per_LS;
-        if (num_ant_ele <= 8) {
-          arrays_per_LS = vector_array_size / mat_size_c;
-          arr_process_at_once = arrays_per_LS * process_at_once;
-
-          if (arr_process_at_once > nr_arrays) {
-            std::cout << "There are more arrays in a processing than arrays available!" << std::endl;
-            std::cout << "Choose a number smaller than " << nr_arrays << std::endl;
-            return;
-          }
-
-        } else {
-          arrays_per_LS = 1;
-          std::cout << "Not implemented yet!" << std::endl;
-        }
-
-        arr_per_chunk = process_at_once * arrays_per_LS;
-        nr_chunks = nr_arrays / arr_per_chunk;
-        // By calculated element we mean one element from an output array that
-        // is the result of an arr * mat multiplication
-        nr_elem_calc = process_at_once * (vector_array_size / mat_size_c);
-        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
+//        int arrays_per_LS;
+//        if (num_ant_ele <= 8) {
+//          arrays_per_LS = vector_array_size / mat_size_c;
+//          arr_process_at_once = arrays_per_LS * process_at_once;
+//
+//          if (arr_process_at_once > nr_arrays) {
+//            std::cout << "There are more arrays in a processing than arrays available!" << std::endl;
+//            std::cout << "Choose a number smaller than " << nr_arrays << std::endl;
+//            return;
+//          }
+//
+//        } else {
+//          arrays_per_LS = 1;
+//          std::cout << "Not implemented yet!" << std::endl;
+//        }
+//
+//        arr_per_chunk = process_at_once * arrays_per_LS;
+//        nr_chunks = nr_arrays / arr_per_chunk;
+//        // By calculated element we mean one element from an output array that
+//        // is the result of an arr * mat multiplication
+//        nr_elem_calc = process_at_once * (vector_array_size / mat_size_c);
+//        nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
 
         // Create ConnexMachine instance
         try {
@@ -112,15 +107,46 @@ namespace gr {
         factor_res = 1 << 14;
         factor_final = 1 << 13;
 
-        // Number of blocks to reduce in a single LS
-        const int blocks_to_reduce = vector_array_size / mat_size_c;
-        const int size_of_block = mat_size_c;
+//        // Number of blocks to reduce in a single LS
+//        const int blocks_to_reduce = vector_array_size / mat_size_c;
+//        const int size_of_block = mat_size_c;
+
+
+        // Variables calculated based on the input parameters
+        mat_size = arr_size * arr_size;
+        arr_size_c = arr_size * 2;
+        mat_size_c = mat_size * 2;
+
+        // Kernel parameters
+        int nr_red_blocks, size_red_block, nr_red_blocks_last;
+
+        calculateChunkingParameters(
+          nr_red_blocks,
+          size_red_block,
+          nr_red_blocks_last);
+
+        std::cout << "Parameters: " << std::endl;
+        std::cout << "===========================================" << std::endl;
+        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+
+        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+        std::cout << "size_red_block: " << size_red_block << std::endl;
+        std::cout << "padding: " << padding << std::endl;
+
 
         // Create the kernel
         try {
-          init_chained(size_of_block);
+          init_chained(size_red_block);
           init_index_chained();
-          multiply_chained(process_at_once, size_of_block, blocks_to_reduce);
+          multiply_chained(LS_per_chunk, size_red_block, nr_red_blocks);
         } catch (std::string e) {
           std::cout << e << std::endl;
         }
@@ -130,16 +156,16 @@ namespace gr {
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-            (malloc(nr_arrays * arr_size_c * arr_size * sizeof(uint16_t)));
+            (malloc(nr_arrays * (arr_size_c * nr_repeat_arr + padding) * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
-            (malloc(vector_array_size * sizeof(uint16_t)));
+            (malloc(LS_per_mat * vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
-            (malloc(nr_chunks * nr_elem_calc_c * sizeof(int32_t)));
+            (malloc(nr_chunks * red_per_chunk * sizeof(int32_t)));
 
         arr_real = static_cast<uint16_t *>
-            (malloc(nr_arrays * arr_size_c * arr_size * sizeof(uint16_t)));
+            (malloc(nr_arrays * (arr_size_c * nr_repeat_arr + padding) * sizeof(uint16_t)));
         arr_imag = static_cast<uint16_t *>
-            (malloc(nr_arrays * arr_size_c * arr_size * sizeof(uint16_t)));
+            (malloc(nr_arrays * (arr_size_c * nr_repeat_arr + padding) * sizeof(uint16_t)));
 
         if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
           std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
@@ -182,8 +208,8 @@ namespace gr {
         d_vii_matrix_trans = trans(d_vii_matrix);
 
         // Prepare steering vectors for storage on ConnexArray
-        prepareInArrConnex(in0_i, d_vii_matrix_conj);
-        prepareInFinalArray(arr_real, arr_imag, d_vii_matrix);
+        prepareInArrConnex(in0_i, d_vii_matrix_conj, nr_arrays);
+        prepareInFinalArray(arr_real, arr_imag, d_vii_matrix, nr_arrays);
     }
 
     /*
@@ -254,37 +280,34 @@ namespace gr {
 
         // Prepare & write matrix for storage in Connex
         prepareInMatConnex(mat_cnx, U_N_sq);
-        connex->writeDataToArray(mat_cnx, 1, 900);
+        connex->writeDataToArray(mat_cnx, LS_per_mat, 900);
 
         // Where to write the input array
         int ls_in_arr = 0;
         int ls_real_arr = 256;
         int ls_imag_arr = 512;
 
-        executeLocalKernel(connex, "initIndexChained");
+        executeLocalKernel(connex, init_index_name.c_str());
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
-          res_cnx = &res_mult[cnt_chunk * nr_elem_calc_c];
+          res_cnx = &res_mult[cnt_chunk * red_per_chunk];
 
-          connex->writeDataToArray(arr_cnx, process_at_once, ls_in_arr);
-          connex->writeDataToArray(arr_curr_real, process_at_once, ls_real_arr);
-          connex->writeDataToArray(arr_curr_imag, process_at_once, ls_imag_arr);
+          connex->writeDataToArray(arr_cnx, LS_per_chunk, ls_in_arr);
+          connex->writeDataToArray(arr_curr_real, LS_per_chunk, ls_real_arr);
+          connex->writeDataToArray(arr_curr_imag, LS_per_chunk, ls_imag_arr);
 
-          int res = executeLocalKernel(connex, "multChained");
+          int res = executeLocalKernel(connex, mult_kernel_name.c_str());
 
-          connex->readMultiReduction(nr_elem_calc_c, res_cnx);
+          connex->readMultiReduction(red_per_chunk, res_cnx);
 
-//          prepareOutDataConnex(res_temp, res_cnx);
-//          processOutData(out_vec, cnt_chunk * arr_per_chunk, res_temp, d_vii_matrix, idx_arr);
-
-          prepareProcessOutDataConnex(out_vec, cnt_chunk * arr_per_chunk, res_cnx, nr_elem_calc_c);
+          prepareProcessOutDataConnex(out_vec, cnt_chunk * arr_per_chunk,
+            res_cnx, red_per_chunk);
 
           // Increment for next chunk
-          arr_cnx += process_at_once * vector_array_size;
-//          idx_arr += arr_per_chunk;
-          ls_in_arr += process_at_once;
-          ls_real_arr += process_at_once;
-          ls_imag_arr += process_at_once;
+          arr_cnx += LS_per_chunk * vector_array_size;
+          ls_in_arr += LS_per_chunk;
+          ls_real_arr += LS_per_chunk;
+          ls_imag_arr += LS_per_chunk;
         } // end loop for each chunk
 
 
@@ -317,8 +340,6 @@ namespace gr {
 //          std::cout << std::endl;
 //        }
 
-
-
       }
 
       nout_items_total += noutput_items;
@@ -327,36 +348,158 @@ namespace gr {
       return noutput_items;
     }
 
+
+    /*===================================================================
+     * Methods that calculate the paramaters for processing in chunks
+     *===================================================================*/
+
+    void MUSIC_lin_array_cnx_impl::splitArraysInChunks(
+      int &arr_per_chunk_, int &nr_chunks_, const int &LS_for_mat_, const int
+      &nr_arrays_, const int &arr_per_LS_)
+    {
+       // ***Find maximum possible chunk by splitting (if necessary) the total
+      // number of arrays in equal chunks
+
+      // We divide by three because we need to fit in the local storage the
+      // array, the real part of the final array and its imaginary part that are
+      // spread over the same number of local storage lines
+      int available_LS = (local_storage_size - LS_for_mat_) / 3;
+      int arrays_to_fit = available_LS * arr_per_LS_;
+      int remainder = 1;
+      nr_chunks_ = 1;
+      do {
+        arr_per_chunk_ = nr_arrays_ / nr_chunks_;
+        remainder = nr_arrays_ % nr_chunks_;
+        nr_chunks_++;
+      } while ((arr_per_chunk_ > arrays_to_fit) || // still not enough space => keep going
+               (remainder != 0)); // chunk is not equal => keep going
+      nr_chunks_--; // when the loop is over the nr_chunks is incremented more than needed
+    }
+
+
+    void MUSIC_lin_array_cnx_impl::calculateChunkingParameters(
+      int &nr_red_blocks_, int &size_red_block_, int &nr_red_last_mat_chunk_)
+    {
+      // ***Check if we have at least one whole matrix in a LS or if the matrix is
+      // split across multiple LSs
+      if (mat_size_c <= vector_array_size) {
+        // At least one matrix in the LS
+        // Use kernels for smaller arrays
+        init_index_name = "initIndexChained";
+        mult_kernel_name = "multChained";
+
+        // ***See how many whole matrices fit in a LS
+        nr_repeat_mat = vector_array_size / mat_size_c;
+        padding = vector_array_size - nr_repeat_mat * mat_size_c;
+        nr_repeat_arr = arr_size; // repeat for each column in the array
+        mat_cols_per_LS = arr_size;
+
+        arr_per_LS = nr_repeat_mat;
+
+        LS_per_mat = 1;
+
+        // ***Find maximum array chunk
+        splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
+
+        // ***Calculate parameters per kernel
+        nr_red_blocks_ = nr_repeat_mat; // calculated per LS
+        nr_red_last_mat_chunk_ = 0;
+
+        // 2 * => because we have the partial sums over two registers that will
+        // be reduced
+        red_per_chunk = 2 * arr_per_chunk;
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
+      } else {
+        // TODO
+        // Split matrix in chunks
+        // Use kernels for larger arrays
+        init_index_name = "initIndexLarge";
+        mult_kernel_name = "multiplyArrMatKernelLarge";
+
+        // ***See how many whole matrix columns fit in a LS
+        int mat_col_size = arr_size_c; // just an alias
+        mat_cols_per_LS = vector_array_size / mat_col_size;
+        padding = vector_array_size % mat_col_size;
+
+        // ***See how many LSs we need to store a mat
+        LS_per_mat = arr_size / mat_cols_per_LS;
+        int remainder_last_mat_chunk = arr_size % mat_cols_per_LS;
+        if (remainder_last_mat_chunk != 0) {
+          // Last LS with matrix columns is incomplete
+          LS_per_mat++;
+          nr_red_last_mat_chunk_ = remainder_last_mat_chunk;
+        } else {
+          // Last LS with matrix columns is complete
+          nr_red_last_mat_chunk_ = mat_cols_per_LS;
+        }
+        nr_red_blocks_ = mat_cols_per_LS; // calculated per LS
+
+        nr_repeat_arr = mat_cols_per_LS;
+        nr_repeat_mat = 0; // set to zero to differentiate from the first case
+
+        arr_per_LS = 1;
+
+        // ***Find maximum array chunk
+        splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
+
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
+        red_per_chunk = 2 * nr_red_blocks_ * LS_per_mat * LS_per_chunk;
+      }
+      size_red_block_ = mat_size_c;
+    }
+
     /*===================================================================
      * Method that prepare in/out data to work with the ConnexArray
      * Prepare = scale and cast
      *===================================================================*/
     // Prepare the whole array
-    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
-      uint16_t *out_arr, const cx_fmat &in_data)
-    {
-      // See how many columns of the matrix fit in one LS and store each array
-      // that many times.
-      int nr_repeat_arr = (mat_size_c > vector_array_size) ? 1 : arr_size;
+//    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
+//      uint16_t *out_arr, const cx_fmat &in_data)
+//    {
+//      // See how many columns of the matrix fit in one LS and store each array
+//      // that many times.
+//      int nr_repeat_arr = (mat_size_c > vector_array_size) ? 1 : arr_size;
+//
+//      int idx_cnx = 0;
+//
+//      for (int j = 0; j < nr_arrays; j++) { // for each array
+//        for (int k = 0; k < nr_repeat_arr; k++) { // store each array this many times
+//          for (int i = 0; i < arr_size; i++) {
+//            out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
+//            out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
+//          }
+//        }
+//      }
+//    }
 
+    void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
+      uint16_t *out_arr, const cx_fmat &in_data, const int &nr_arrays_prepare)
+    {
       int idx_cnx = 0;
 
-      for (int j = 0; j < nr_arrays; j++) { // for each array
+      // TODO create separate branches for padding to avoid checking everytime
+      for (int j = 0; j < nr_arrays_prepare; j++) { // for each array
         for (int k = 0; k < nr_repeat_arr; k++) { // store each array this many times
           for (int i = 0; i < arr_size; i++) {
             out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
           }
         }
+        if (padding != 0)
+          if ((j + 1) % arr_per_LS == 0) {
+            // Must add padding before the next element
+            idx_cnx += padding;
+          }
       }
     }
 
     void MUSIC_lin_array_cnx_impl::prepareInFinalArray(
-      uint16_t *out_arr_real, uint16_t *out_arr_imag, const cx_fmat &in_arr)
+      uint16_t *out_arr_real, uint16_t *out_arr_imag, const cx_fmat &in_arr,
+      const int &nr_arrays_prepare)
     {
       int idx_cnx = 0;
 
-      for (int j = 0; j < nr_arrays; j++) { // for each array
+      for (int j = 0; j < nr_arrays_prepare; j++) { // for each array
         for (int i = 0; i < arr_size; i++) { // for each elem of the array
           for (int cnt_r = 0; cnt_r < arr_size_c; cnt_r++) {
             // store the same element of the array for each element of a column
@@ -366,27 +509,63 @@ namespace gr {
             idx_cnx++;
           }
         }
+        if (padding != 0)
+          if ((j + 1) % arr_per_LS == 0) {
+            // Must add padding before the next element
+            idx_cnx += padding;
+          }
       }
     }
 
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
       uint16_t *out_mat, const cx_fmat &in_mat)
     {
-      // Only one LS will contain the matrix => See how many times we have to
-      // repeat it to store it in the one LS
-      const int nr_repeats = vector_array_size / mat_size_c;
       int idx_cnx = 0;
 
-      for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
-        // Store column-first
-        for (int j = 0; j < arr_size; j++) {
-          for (int i = 0; i < arr_size; i++) {
+      // Separate branches to avoid checking for padding each time
+      if (nr_repeat_mat != 0) {
+        // Don't need to add padding
+        for (int cnt_r = 0; cnt_r < nr_repeat_mat; cnt_r++) { // repeat this many times
+          for (int j = 0; j < arr_size; j++) { // for each column
+            for (int i = 0; i < arr_size; i++) { // for each element in column
+              out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
+              out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+            }
+          }
+        }
+      } else {
+        // Don't need to repeat the mat
+        for (int j = 0; j < arr_size; j++) { // for each column
+          for (int i = 0; i < arr_size; i++) { // for each element in column
             out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
             out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+          }
+          // Add pading after a number of mat_cols_per_LS columns
+          if ((j + 1) % mat_cols_per_LS == 0) {
+            idx_cnx += padding;
           }
         }
       }
     }
+
+//    void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
+//      uint16_t *out_mat, const cx_fmat &in_mat)
+//    {
+//      // Only one LS will contain the matrix => See how many times we have to
+//      // repeat it to store it in the one LS
+//      const int nr_repeats = vector_array_size / mat_size_c;
+//      int idx_cnx = 0;
+//
+//      for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
+//        // Store column-first
+//        for (int j = 0; j < arr_size; j++) {
+//          for (int i = 0; i < arr_size; i++) {
+//            out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
+//            out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+//          }
+//        }
+//      }
+//    }
 
     void MUSIC_lin_array_cnx_impl::prepareProcessOutDataConnex(
       fvec &out_data, const int &idx_to_start, const int32_t *raw_out_data,
@@ -395,13 +574,13 @@ namespace gr {
       float temp0, temp1;
       int idx_out = idx_to_start;
 
+// TODO: adjust for when the results are spread over more than two reductions
       for (int i = 0; i < nr_elem; i+=2) {
         temp0 = (static_cast<float>(raw_out_data[i]) / factor_final);
         temp1 = (static_cast<float>(raw_out_data[i + 1]) / factor_final);
 
         temp0 += temp1;
         out_data(idx_out++) = 1.0 / abs(temp0);
-//        out_data(idx_out++) = abs(temp0);
       }
     }
 
@@ -518,7 +697,6 @@ namespace gr {
             R23 = R23 + R30;
           )
         }
-
       END_KERNEL("multChained");
     }
   } /* namespace doa */

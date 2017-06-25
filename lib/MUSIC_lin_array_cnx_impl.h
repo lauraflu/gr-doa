@@ -55,29 +55,54 @@ namespace gr {
       int nout_items_total = 0;
 
       ConnexMachine *connex;
+      std::string init_index_name;
+      std::string mult_kernel_name;
 
       // Variables for easier management of chunks and sizes
       const int vector_array_size = 128;
+      const int local_storage_size = 1024;
       int arr_size, mat_size;
       int arr_size_c, mat_size_c;
 
-      // How many arrays are processed at once on the Connexarray
-      int arr_process_at_once;
-      // How many LSs are used in a kernel execution
-      int process_at_once = 128;
+      // Nr of times the *same* mat/arr is repeated in a LS
+      int nr_repeat_mat, nr_repeat_arr;
+
+      // In case the data doesn't fill the whole ConnexArray
+      int padding;
+
+      // Nr of *different* arrays/columns of matrix that fit in a LS
+      int arr_per_LS, mat_cols_per_LS;
+
+      // Nr of arrays are processed in a chunk
+      int arr_per_chunk;
+      int nr_chunks;
+      int LS_per_mat;
+      int LS_per_chunk;
+
+      // Nr of reductions to read in a chunk
+      int red_per_chunk;
 
       // The total number of the arrays that will be multiplied by the same
       // matrix
       int nr_arrays;
 
-      // The total number of multiplications will be processed in chunks on the
-      // kernels.
-      // How many of the total number of the arrays can be processed in an
-      // iteration on the ConnexArray kernel
-      int arr_per_chunk;
-      int nr_chunks;
-      int nr_elem_calc;
-      int nr_elem_calc_c;
+//      // How many arrays are processed at once on the Connexarray
+//      int arr_process_at_once;
+//      // How many LSs are used in a kernel execution
+//      int process_at_once = 128;
+//
+//      // The total number of the arrays that will be multiplied by the same
+//      // matrix
+//      int nr_arrays;
+//
+//      // The total number of multiplications will be processed in chunks on the
+//      // kernels.
+//      // How many of the total number of the arrays can be processed in an
+//      // iteration on the ConnexArray kernel
+//      int arr_per_chunk;
+//      int nr_chunks;
+//      int nr_elem_calc;
+//      int nr_elem_calc_c;
 
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
@@ -103,9 +128,14 @@ namespace gr {
 
       void prepareInArrConnex(
         uint16_t *out_arr,
-        const cx_fmat &in_data);
+        const cx_fmat &in_data,
+        const int &nr_arrays_prepare);
 
-      void prepareInFinalArray(uint16_t *out_arr_real, uint16_t *out_arr_imag, const cx_fmat &in_arr);
+      void prepareInFinalArray(
+        uint16_t *out_arr_real,
+        uint16_t *out_arr_imag,
+        const cx_fmat &in_arr,
+        const int &nr_arrays_prepare);
 
       /* \brief Prepares (scales and converts) the elements of the matrix that
        *        will be fed to the ConnexArray. For each output item, the matrix
@@ -125,6 +155,11 @@ namespace gr {
         const int32_t *raw_out_data,
         const int &nr_elem);
 
+    void splitArraysInChunks(int &arr_per_chunk_, int &nr_chunks_,
+      const int &LS_for_mat_, const int &nr_arrays_, const int &arr_per_LS_);
+
+    void calculateChunkingParameters(
+      int &nr_red_blocks, int &size_red_block, int &nr_red_last_mat_chunk);
 
      public:
       void amv(cx_fcolvec& v_ii, fcolvec& array_loc, float theta);
