@@ -103,26 +103,26 @@ namespace gr {
         LS_final_imag = LS_final_real + LS_per_chunk;
         LS_mat = LS_final_imag + LS_per_chunk;
 
-        std::cout << "Parameters: " << std::endl;
-        std::cout << "===========================================" << std::endl;
-        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-        std::cout << "total_LS_per_chunk: " << total_LS_per_chunk << std::endl;
-        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-
-        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-        std::cout << "size_red_block: " << size_red_block << std::endl;
-        std::cout << "padding: " << padding << std::endl;
-        std::cout << "LSs - arr: " << LS_in_arr << ", final real: " <<
-        LS_final_real << ", final imag: " << LS_final_imag << ", mat: " <<
-        LS_mat << std::endl;
-        std::cout << "arr_elems_to_alloc: " << arr_elems_to_alloc << std::endl;
+//        std::cout << "Parameters: " << std::endl;
+//        std::cout << "===========================================" << std::endl;
+//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+//        std::cout << "total_LS_per_chunk: " << total_LS_per_chunk << std::endl;
+//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+//
+//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+//        std::cout << "size_red_block: " << size_red_block << std::endl;
+//        std::cout << "padding: " << padding << std::endl;
+//        std::cout << "LSs - arr: " << LS_in_arr << ", final real: " <<
+//        LS_final_real << ", final imag: " << LS_final_imag << ", mat: " <<
+//        LS_mat << std::endl;
+//        std::cout << "arr_elems_to_alloc: " << arr_elems_to_alloc << std::endl;
 
         // Create the kernel
         try {
