@@ -25,12 +25,14 @@
 #include <gnuradio/io_signature.h>
 #include "autocorrelateConnexKernel_impl.h"
 #include <armadillo>
+
 #define COPY_MEM false  // Do not copy matrices into separate memory
 #define FIX_SIZE true   // Keep dimensions of matrices constant
 
 namespace gr {
   namespace doa {
 
+    bool red_finish = false;
 
     autocorrelateConnexKernel::sptr
     autocorrelateConnexKernel::make(
@@ -154,26 +156,32 @@ namespace gr {
                        gr_vector_const_void_star &input_items,
                        gr_vector_void_star &output_items)
     {
-      // Cast pointer
       gr_complex *out = (gr_complex *) output_items[0];
 
-      // Create each output matrix
-      for (int i = 0; i < output_matrices; i++)
+      // Prepare the elements for the first output matrix
+      std::vector<const gr_complex *> in_data_ptr(d_num_inputs);
+      for (int k = 0; k < d_num_inputs; k++) {
+        in_data_ptr[k] = ((gr_complex *)input_items[k]);
+        prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols, padding);
+      }
+      connex->writeDataToArray(in_data_cnx, total_LS_used, 0);
+      executeLocalKernel(connex, autocorrelation_kernel);
+
+      gr_complex *out_data;
+      int32_t *curr_out_data_cnx;
+      const int last_out_matrix = output_matrices - 1;
+
+      // Processing for all but the last output matrix
+      for (int i = 0; i < last_out_matrix; i++)
       {
-        gr_complex *out_data = &out[i * d_num_inputs * d_num_inputs];
-        std::vector<const gr_complex *> in_data_ptr(d_num_inputs);
+        // Start thread that will do the processing for the last matrix
+        std::thread t(&autocorrelateConnexKernel_impl::prepareWriteExecute,
+          this, std::ref(input_items), i+1);
 
-        // Keep pointers to input data
-        for (int k = 0; k < d_num_inputs; k++) {
-          in_data_ptr[k] = ((gr_complex *)input_items[k] + i * d_nonoverlap_size);
-          prepareInData(&in_data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols, padding);
-        }
+        out_data = &out[i * d_num_inputs * d_num_inputs];
 
-        connex->writeDataToArray(in_data_cnx, total_LS_used, 0);
-
-        executeLocalKernel(connex, autocorrelation_kernel);
-
-        int32_t *curr_out_data_cnx = out_data_cnx;
+        // Read reduction and process output data
+        curr_out_data_cnx = out_data_cnx;
         for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
           for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
             connex->readMultiReduction(n_red_per_elem, curr_out_data_cnx);
@@ -189,37 +197,44 @@ namespace gr {
           }
         }
 
+        // Tell the thread we have finished reading the reductions
+        {
+          std::lock_guard<std::mutex> lk(m);
+          red_finish = true;
+        }
+        cv.notify_one();
 
         // Averaging results
-        // TODO: check if it's faster to use arma here
         if (d_avg_method) {
-          std::complex<float> two_c = (2.0, 2.0);
-          std::vector<std::vector<gr_complex>> refl_matrix;
-          refl_matrix.resize(n_rows);
+          averageResults(out_data);
+        } // end loop for each output matrix
 
-          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            refl_matrix[cnt_row].resize(n_rows);
+        t.join();
+      }
 
-            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
-              int idx_row = n_rows - 1 - cnt_row;
-              int idx_col = n_rows - 1 - cnt_col;
-              int idx = idx_row + idx_col * n_rows;
+      // Processing for the last matrix
+      out_data = &out[last_out_matrix * d_num_inputs * d_num_inputs];
 
-              // Divide the initial results by 2
-              out_data[idx] = out_data[idx] / two_c;
+      // Read reduction and process output data
+      curr_out_data_cnx = out_data_cnx;
+      for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+        for (int cnt_col = cnt_row; cnt_col < n_rows; cnt_col++) {
+          connex->readMultiReduction(n_red_per_elem, curr_out_data_cnx);
 
-              // form reflection matrix
-              refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
-            }
-          }
+          int curr_idx = cnt_row + cnt_col * n_rows;
+          out_data[curr_idx] = prepareAndProcessOutData(curr_out_data_cnx, n_red_per_elem / 2);
 
-          for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
-            for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
-              int idx = cnt_row + cnt_col * n_rows;
-              out_data[idx] += refl_matrix[cnt_row][cnt_col];
-            }
-          }
-        } // end loop averaging
+          // Hermitian matrix => a_ij = conj(a_ji);
+          out_data[cnt_col + cnt_row * n_rows] =
+            gr_complex(out_data[curr_idx].real(), -out_data[curr_idx].imag());
+
+          curr_out_data_cnx += n_red_per_elem;
+        }
+      }
+
+      // Averaging results
+      if (d_avg_method) {
+        averageResults(out_data);
       } // end loop for each output matrix
 
       // Tell runtime system how many input items we consumed on
@@ -228,6 +243,30 @@ namespace gr {
 
       // Tell runtime system how many output items we produced.
       return (output_matrices);
+    }
+
+    void autocorrelateConnexKernel_impl::prepareWriteExecute(
+      gr_vector_const_void_star &input_items,
+      int nr_in_item)
+    {
+      uint16_t *data_cnx = static_cast<uint16_t *>(malloc(n_elems_c * sizeof(uint16_t)));
+      std::vector<const gr_complex *> in_data_ptr(d_num_inputs);
+
+      for (int k = 0; k < d_num_inputs; k++) {
+        in_data_ptr[k] = ((gr_complex *)input_items[k] + nr_in_item * d_nonoverlap_size);
+        prepareInData(&data_cnx[k * 2 * n_cols], in_data_ptr[k], n_cols, padding);
+      }
+
+      // Sync barrier here -- The writing and the launch must be executed only
+      // after reading the reduction in the main thread
+      std::unique_lock<std::mutex> lk(m);
+      cv.wait(lk, []{return red_finish;});
+
+      connex->writeDataToArray(data_cnx, total_LS_used, 0);
+      executeLocalKernel(connex, "autocorrelationKernel");
+
+      free(data_cnx);
+      lk.unlock();
     }
 
     void autocorrelateConnexKernel_impl::prepareInData(
@@ -288,6 +327,36 @@ namespace gr {
       acc_imag = acc_imag / n_cols;
 
       return gr_complex(acc_real, acc_imag);
+    }
+
+    void autocorrelateConnexKernel_impl::averageResults(gr_complex *out_data)
+    {
+      std::complex<float> two_c = (2.0, 2.0);
+      std::vector<std::vector<gr_complex>> refl_matrix;
+      refl_matrix.resize(n_rows);
+
+      for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+        refl_matrix[cnt_row].resize(n_rows);
+
+        for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
+          int idx_row = n_rows - 1 - cnt_row;
+          int idx_col = n_rows - 1 - cnt_col;
+          int idx = idx_row + idx_col * n_rows;
+
+          // Divide the initial results by 2
+          out_data[idx] = out_data[idx] / two_c;
+
+          // form reflection matrix
+          refl_matrix[cnt_row][cnt_col] = conj(out_data[idx]);
+        }
+      }
+
+      for (int cnt_row = 0; cnt_row < n_rows; cnt_row++) {
+        for (int cnt_col = 0; cnt_col < n_rows; cnt_col++) {
+          int idx = cnt_row + cnt_col * n_rows;
+          out_data[idx] += refl_matrix[cnt_row][cnt_col];
+        }
+      }
     }
 
     int autocorrelateConnexKernel_impl::executeLocalKernel(
