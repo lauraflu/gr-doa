@@ -326,8 +326,12 @@ namespace gr {
 
         LS_per_mat = 1;
 
+        // The matrix will be saved from the LS in a register before loading the
+        // arrays, so it will not be overwritten
+        int temp_LS_per_mat = 0;
+
         // ***Find maximum array chunk
-        splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
+        splitArraysInChunks(arr_per_chunk, nr_chunks, temp_LS_per_mat, nr_arrays, arr_per_LS);
 
         // ***Calculate parameters per kernel
         nr_red_blocks_ = nr_repeat_mat * arr_size; // calculated per LS
