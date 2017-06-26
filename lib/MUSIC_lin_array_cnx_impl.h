@@ -70,7 +70,8 @@ namespace gr {
       int arr_per_chunk;
       int nr_chunks;
       int LS_per_mat;
-      int LS_per_chunk;
+      int LS_per_chunk; // only for array
+      int total_LS_per_chunk;
 
       // Nr of reductions to read in a chunk
       int red_per_chunk;
@@ -82,10 +83,12 @@ namespace gr {
       // Pointers to data for/from the ConnexArray
       uint16_t *in0_i, *in1_i;
       int32_t *res_mult;
-      uint16_t *arr_real, *arr_imag;
 
       // Factors for scaling the input data for the ConnexArray
       uint32_t factor_mult1, factor_mult2, factor_res, factor_final;
+
+      // LSs in which the data is stored
+      int LS_in_arr, LS_final_real, LS_final_imag, LS_mat;
 
       /*===================================================================
        * KERNEL RELATED
@@ -105,7 +108,7 @@ namespace gr {
       int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
 
       // Defines the init kernel
-      void init_chained(int size_red_block);
+      void init_chained(int size_red_block, int LS_mat_);
 
       // Defines the init kernel
       void init_index_chained(void);
@@ -114,7 +117,10 @@ namespace gr {
       void multiply_chained(
         int LS_per_execution,
         int size_red_block,
-        int nr_red_blocks);
+        int nr_red_blocks,
+        int LS_in_arr_,
+        int LS_final_real_,
+        int LS_final_imag_);
 
       /*===================================================================
        * FUNCTIONS FOR PREPARING THE I/O DATA
@@ -123,13 +129,15 @@ namespace gr {
       void prepareInArrConnex(
         uint16_t *out_arr,
         const cx_fmat &in_data,
-        const int &nr_arrays_prepare);
+        const int &nr_arrays_prepare,
+        const int &arr_to_start);
 
       void prepareInFinalArray(
         uint16_t *out_arr_real,
         uint16_t *out_arr_imag,
         const cx_fmat &in_arr,
-        const int &nr_arrays_prepare);
+        const int &nr_arrays_prepare,
+        const int &arr_to_start);
 
       /* \brief Prepares (scales and converts) the elements of the matrix that
        *        will be fed to the ConnexArray. For each output item, the matrix
