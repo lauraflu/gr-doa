@@ -491,11 +491,11 @@ namespace gr {
     {
       BEGIN_KERNEL("initKernel");
         EXECUTE_IN_ALL(
-          R25 = 0;
-          R26 = 900;
-          R30 = 1;
-          R31 = 0;
-          R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
+          R10 = 0;
+          R11 = 1;
+          R12 = 0;
+          R13 = 900;
+          R14 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
                                 // on which reduction is performed at once
           R8 = INDEX;           // Select only the odd PEs
         )
@@ -506,7 +506,7 @@ namespace gr {
     {
       BEGIN_KERNEL("initIndex");
         EXECUTE_IN_ALL(
-          R2 = LS[R26];                 // load input matrix
+          R2 = LS[R13];                 // load input matrix
         )
       END_KERNEL("initIndex");
     }
@@ -517,60 +517,60 @@ namespace gr {
       // TODO: maybe make LS_per_iteration loop with repeat
       BEGIN_KERNEL("multiplyArrMatKernel");
         EXECUTE_IN_ALL(
-          R25 = 0;                        // reset array LS index
+          R12 = 0;                        // reset array LS index
         )
 
         for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
-            R1 = LS[R25];               // load input array
-            R29 = INDEX;                // Used later to select PEs for reduction
-            R27 = size_reduction_block; // Used to select blocks for reduction
+            R1 = LS[R12];               // load input array
+            R15 = INDEX;                // Used later to select PEs for reduction
+            R6 = size_reduction_block;  // Used to select blocks for reduction
 
             R3 = R1 * R2;               // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
 
-            CELL_SHL(R2, R30);          // Bring b2 to the left to calc b2 * a1
+            CELL_SHL(R2, R11);          // Bring b2 to the left to calc b2 * a1
             NOP;
             R4 = SHIFT_REG;
             R4 = R1 * R4;               // a1 * b2
             R4 = MULT_HIGH();
 
-            CELL_SHR(R2, R30);
+            CELL_SHR(R2, R11);
             NOP;
             R5 = SHIFT_REG;
             R5 = R1 * R5;               // b1 * a2
             R5 = MULT_HIGH();
 
-            R9 = R8 & R30;
-            R7 = (R9 == R30);
+            R9 = R8 & R11;
+            R7 = (R9 == R11);
             NOP;
           )
 
           EXECUTE_WHERE_EQ(             // Only in the odd PEs
             // Getting -b1 * b2 in each odd cell
-            R3 = R31 - R3;              // All partial real parts are in R3
+            R3 = R10 - R3;              // All partial real parts are in R3
 
             R4 = R5;                    // All partial imaginary parts are now in R4
           )
 
           REPEAT_X_TIMES(blocks_to_reduce);
             EXECUTE_IN_ALL(
-              R7 = (R29 < R27);         // Select only blocks of PEs at a time
+              R7 = (R15 < R6);          // Select only blocks of PEs at a time
               NOP;
             )
             EXECUTE_WHERE_LT(
-              R29 = 129;                // A random number > 128 so these PEs won't be
+              R15 = 129;                // A random number > 128 so these PEs won't be
                                         // selected again
               REDUCE(R3);               // Real part
               REDUCE(R4);               // Imaginary part
             )
             EXECUTE_IN_ALL(
-              R27 = R27 + R28;          // Go to the next block of PEs
+              R6 = R6 + R14;            // Go to the next block of PEs
             )
           END_REPEAT;
 
           EXECUTE_IN_ALL(
-            R25 = R25 + R30;            // Go to the next LS
+            R12 = R12 + R11;            // Go to the next LS
           )
         }
       END_KERNEL("multiplyArrMatKernel");
@@ -580,7 +580,7 @@ namespace gr {
     {
       BEGIN_KERNEL("initIndexLarge");
         EXECUTE_IN_ALL(
-          R25 = 0;                      // reset array LS index
+          R12 = 0;                      // reset array LS index
         )
       END_KERNEL("initIndexLarge");
     }
@@ -591,121 +591,121 @@ namespace gr {
     {
       BEGIN_KERNEL("multiplyArrMatKernelLarge");
         EXECUTE_IN_ALL(
-          R25 = 0;                        // reset array LS index
+          R12 = 0;                         // reset array LS index
         )
 
         for (int i = 0; i < LS_per_iteration; i++) { // for each array in chunk
           EXECUTE_IN_ALL(
-            R1 = LS[R25];                   // load input array
-            R26 = 900;
+            R1 = LS[R12];                 // load input array
+            R13 = 900;
           )
 
           // For each matrix chunk except the last
           for (int j = 0; j < LS_per_mat - 1; j++) {
             EXECUTE_IN_ALL(
-              R2 = LS[R26];               // load input matrix
-              R29 = INDEX;                // Used later to select PEs for reduction
-              R27 = size_reduction_block; // Used to select blocks for reduction
+              R2 = LS[R13];               // load input matrix
+              R15 = INDEX;                // Used later to select PEs for reduction
+              R6 = size_reduction_block;  // Used to select blocks for reduction
 
               R3 = R1 * R2;               // a1 * a2, b1 * b2
               R3 = MULT_HIGH();
 
-              CELL_SHL(R2, R30);          // Bring b2 to the left to calc b2 * a1
+              CELL_SHL(R2, R11);          // Bring b2 to the left to calc b2 * a1
               NOP;
               R4 = SHIFT_REG;
               R4 = R1 * R4;               // a1 * b2
               R4 = MULT_HIGH();
 
-              CELL_SHR(R2, R30);
+              CELL_SHR(R2, R11);
               NOP;
               R5 = SHIFT_REG;
               R5 = R1 * R5;               // b1 * a2
               R5 = MULT_HIGH();
 
-              R9 = R8 & R30;
-              R7 = (R9 == R30);
+              R9 = R8 & R11;
+              R7 = (R9 == R11);
               NOP;
             )
 
             EXECUTE_WHERE_EQ(             // Only in the odd PEs
               // Getting -b1 * b2 in each odd cell
-              R3 = R31 - R3;              // All partial real parts are in R3
+              R3 = R10 - R3;              // All partial real parts are in R3
 
               R4 = R5;                    // All partial imaginary parts are now in R4
             )
 
             REPEAT_X_TIMES(blocks_to_reduce);
               EXECUTE_IN_ALL(
-                R7 = (R29 < R27);         // Select only blocks of PEs at a time
+                R7 = (R15 < R6);          // Select only blocks of PEs at a time
                 NOP;
               )
               EXECUTE_WHERE_LT(
-                R29 = 129;                // A random number > 128 so these PEs won't be
+                R15 = 129;                // A random number > 128 so these PEs won't be
                                           // selected again
                 REDUCE(R3);               // Real part
                 REDUCE(R4);               // Imaginary part
               )
               EXECUTE_IN_ALL(
-                R27 = R27 + R28;          // Go to the next block of PEs
+                R6 = R6 + R14;            // Go to the next block of PEs
               )
             END_REPEAT;
 
             EXECUTE_IN_ALL(
-              R26 = R26 + R30;            // Go to the next LS with mat
+              R13 = R13 + R11;            // Go to the next LS with mat
             )
           } // end for each column of mat
 
           // The last matrix chunk may be incomplete, so we treat it differently
           // to avoid doing unnecessary reductions
           EXECUTE_IN_ALL(
-            R2 = LS[R26];               // load input matrix
-            R29 = INDEX;                // Used later to select PEs for reduction
-            R27 = size_reduction_block; // Used to select blocks for reduction
+            R2 = LS[R13];                 // load input matrix
+            R15 = INDEX;                  // Used later to select PEs for reduction
+            R6 = size_reduction_block;    // Used to select blocks for reduction
 
-            R3 = R1 * R2;               // a1 * a2, b1 * b2
+            R3 = R1 * R2;                 // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
 
-            CELL_SHL(R2, R30);          // Bring b2 to the left to calc b2 * a1
+            CELL_SHL(R2, R11);            // Bring b2 to the left to calc b2 * a1
             NOP;
             R4 = SHIFT_REG;
-            R4 = R1 * R4;               // a1 * b2
+            R4 = R1 * R4;                 // a1 * b2
             R4 = MULT_HIGH();
 
-            CELL_SHR(R2, R30);
+            CELL_SHR(R2, R11);
             NOP;
             R5 = SHIFT_REG;
-            R5 = R1 * R5;               // b1 * a2
+            R5 = R1 * R5;                 // b1 * a2
             R5 = MULT_HIGH();
 
-            R9 = R8 & R30;
-            R7 = (R9 == R30);
+            R9 = R8 & R11;
+            R7 = (R9 == R11);
           )
 
-          EXECUTE_WHERE_EQ(             // Only in the odd PEs
+          EXECUTE_WHERE_EQ(               // Only in the odd PEs
             // Getting -b1 * b2 in each odd cell
-            R3 = R31 - R3;              // All partial real parts are in R3
+            R3 = R10 - R3;                // All partial real parts are in R3
 
-            R4 = R5;                    // All partial imaginary parts are now in R4
+            R4 = R5;                      // All partial imaginary parts are now in R4
           )
 
           REPEAT_X_TIMES(blocks_to_reduce_last);
             EXECUTE_IN_ALL(
-              R7 = (R29 < R27);         // Select only blocks of PEs at a time
+              R7 = (R15 < R6);            // Select only blocks of PEs at a time
             )
             EXECUTE_WHERE_LT(
-              R29 = 129;                // A random number > 128 so these PEs won't be
-                                        // selected again
-              REDUCE(R3);               // Real part
-              REDUCE(R4);               // Imaginary part
+              R15 = 129;                  // A random number > 128 so these PEs won't be
+                                          // selected again
+              REDUCE(R3);                 // Real part
+              REDUCE(R4);                 // Imaginary part
             )
             EXECUTE_IN_ALL(
-              R27 = R27 + R28;          // Go to the next block of PEs
+              R6 = R6 + R14;              // Go to the next block of PEs
             )
           END_REPEAT;
           // End processing for last matrix chunk
 
         EXECUTE_IN_ALL(
-            R25 = R25 + R30;              // Go to the next array
+            R12 = R12 + R11;              // Go to the next array
           )
         } // end for each array
       END_KERNEL("multiplyArrMatKernelLarge");
