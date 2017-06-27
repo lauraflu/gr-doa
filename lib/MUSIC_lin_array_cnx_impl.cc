@@ -247,7 +247,7 @@ namespace gr {
         uint16_t *arr_curr_cnx = in0_i, *mat_cnx = in1_i;
         int32_t *res_curr_cnx = res_mult;
 
-        // Indices of next, past and current array chunks in matrix format
+        // Indices of current array chunks in matrix format
         int idx_curr_chunk = 0;
 
         // Prepare & write matrix for storage in Connex
@@ -497,7 +497,7 @@ namespace gr {
           R31 = 0;
           R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
                                 // on which reduction is performed at once
-          R9 = INDEX;           // Select only the odd PEs
+          R8 = INDEX;           // Select only the odd PEs
         )
       END_KERNEL("initKernel");
     }
@@ -541,8 +541,8 @@ namespace gr {
             R5 = R1 * R5;               // b1 * a2
             R5 = MULT_HIGH();
 
-            R10 = R9 & R30;
-            R7 = (R10 == R30);
+            R9 = R8 & R30;
+            R7 = (R9 == R30);
             NOP;
           )
 
@@ -622,8 +622,8 @@ namespace gr {
               R5 = R1 * R5;               // b1 * a2
               R5 = MULT_HIGH();
 
-              R10 = R9 & R30;
-              R7 = (R10 == R30);
+              R9 = R8 & R30;
+              R7 = (R9 == R30);
               NOP;
             )
 
@@ -677,8 +677,8 @@ namespace gr {
             R5 = R1 * R5;               // b1 * a2
             R5 = MULT_HIGH();
 
-            R10 = R9 & R30;
-            R7 = (R10 == R30);
+            R9 = R8 & R30;
+            R7 = (R9 == R30);
           )
 
           EXECUTE_WHERE_EQ(             // Only in the odd PEs
