@@ -74,107 +74,6 @@ namespace gr {
         arr_size_c = arr_size * 2;
         mat_size_c = mat_size * 2;
 
-        // Factors for scaling the data
-        factor_mult1 = 1 << 15;
-        factor_mult2 = 1 << 15;
-        factor_res = 1 << 14;
-
-        // Number of blocks to reduce in a single LS
-        int blocks_to_reduce;
-        int size_of_block;
-        int mem_arr;
-        int mem_mat;
-
-        /*=============================================================
-         * CHUNKING
-         *============================================================*/
-        if (mat_size_c <= vector_array_size) {
-          // At least one array x matrix multiplication in a LS
-          arrays_per_LS = vector_array_size / mat_size_c;
-          padding = vector_array_size % mat_size_c;
-
-          LS_for_mat = 1;
-
-          // In an interation for a LS
-          blocks_to_reduce = arrays_per_LS * arr_size; // one for each column
-          size_of_block = arr_size_c;
-
-          // Find maximum chunk possible (all chunks are equal)
-          int available_LS = total_LS - 1;
-          int arrays_to_fit = available_LS * arrays_per_LS;
-          int remainder = 1;
-          nr_chunks = 1;
-
-          do {
-            arrays_per_chunk = nr_arrays / nr_chunks;
-            remainder = nr_arrays % nr_chunks;
-            nr_chunks++;
-          } while ((arrays_per_chunk > arrays_to_fit) ||
-                   (remainder != 0));
-          nr_chunks--;
-
-          if (arrays_per_chunk == 0) {
-            std::cout << "Couldn't split arrays into chunks!" << std::endl;
-            return;
-          }
-
-          iterations_per_chunk = arrays_per_chunk / arrays_per_LS;
-
-          // We suppose that the length of the spectrum is a power of 2, as
-          // it's usually the case; otherwise the last LS would be incomplete
-          // and we would have to take that into account, too.
-          nr_elem_calc = arrays_per_chunk * arr_size;
-          nr_elem_calc_c = 2 * nr_elem_calc; // real and imaginary parts
-
-          // Calculate how much memory to allocate to store the data
-          mem_arr = nr_arrays * (arr_size_c * arr_size + padding);
-          mem_mat = vector_array_size;
-
-          // Kernel related
-          mult_kernel_to_exec = "multiplyArrMatKernel";
-          init_kernel_to_exec = "initKernel";
-
-          try {
-            init_index();
-            multiply_kernel(iterations_per_chunk, size_of_block, blocks_to_reduce);
-          } catch (std::string e) {
-            std::cout << e << std::endl;
-          }
-
-        } else {
-//          // Split the matrix in chunks
-//          int col_size = arr_size_c;
-//          int nr_cols = arr_size;
-//          if (col_size <= vector_array_size) {
-//            // one reduction => one output element
-//            mat_cols_per_LS = vector_array_size / col_size; // whole matrices in LS
-//            LS_for_mat = nr_cols / mat_cols_per_LS;
-//            int nr_cols_last_LS = nr_cols % mat_cols_per_LS;
-//            if (nr_cols_last_LS != 0)
-//              LS_for_mat++;
-//            padding = vector_array_size - mat_cols_per_LS * col_size;
-//
-//            arrays_per_LS = 1;
-//          } else {
-//            // more reductions => one output element; have to change processing
-//            // output data
-//          }
-//
-//          // Split arrays in chunks
-//
-//          // Kernel related
-//          mult_kernel_to_exec = "multiplyArrMatKernelLarge";
-//          init_kernel_to_exec = "initKernelLarge";
-//
-//          try {
-//            init_index();
-//            init_kernel_large();
-//            multiply_kernel_large(iterations_per_chunk, size_of_block, blocks_to_reduce);
-//          } catch (std::string e) {
-//            std::cout << e << std::endl;
-//          }
-        }
-
         // Create ConnexMachine instance
         try {
           connex = new ConnexMachine(distributionFIFO,
@@ -185,32 +84,70 @@ namespace gr {
           std::cout << err << std::endl;
         }
 
+        factor_mult1 = 1 << 15;
+        factor_mult2 = 1 << 15;
+        factor_res = 1 << 14;
+
+        // Kernel parameters
+        int nr_red_blocks, size_red_block, nr_red_blocks_last;
+
+        calculateChunkingParameters(
+          nr_red_blocks,
+          size_red_block,
+          nr_red_blocks_last);
+
+//        std::cout << "Parameters: " << std::endl;
+//        std::cout << "===========================================" << std::endl;
+//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+//
+//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+//        std::cout << "nr_red_blocks_last: " << nr_red_blocks_last << std::endl;
+//
+//        std::cout << "size_red_block: " << size_red_block << std::endl;
+//        std::cout << "padding: " << padding << std::endl;
+
         // Create the kernel
         try {
-          init_kernel(size_of_block);
-          init_index();
-          multiply_kernel(iterations_per_chunk, size_of_block, blocks_to_reduce);
+          init_kernel(size_red_block);
+
+          if (mat_size_c <= vector_array_size) {
+            init_index();
+            multiply_kernel(LS_per_chunk, size_red_block, nr_red_blocks);
+          } else {
+            init_index_large();
+            multiply_kernel_large(LS_per_chunk, LS_per_mat, size_red_block,
+            nr_red_blocks, nr_red_blocks_last);
+          }
         } catch (std::string e) {
           std::cout << e << std::endl;
         }
 
         executeLocalKernel(connex, "initKernel");
 
+        int size_of_padding = (nr_arrays / arr_per_LS) * padding;
         // Allocate memory for the data that will be passed to the ConnexArray
         // and the data that it produces.
         in0_i = static_cast<uint16_t *>
-            (malloc(mem_arr * sizeof(uint16_t)));
+            (malloc((nr_arrays * arr_size_c * nr_repeat_arr + size_of_padding) * sizeof(uint16_t)));
         in1_i = static_cast<uint16_t *>
-            (malloc(mem_mat * sizeof(uint16_t)));
+            (malloc(LS_per_mat * vector_array_size * sizeof(uint16_t)));
         res_mult = static_cast<int32_t *>
-            (malloc(nr_chunks * nr_elem_calc_c * sizeof(int32_t)));
+            (malloc(nr_chunks * red_per_chunk * sizeof(int32_t)));
 
         if ((in0_i == NULL) || (in1_i == NULL) || (res_mult == NULL)) {
           std::cout << "Malloc error at in0_i/in1_i/res_mult!" << std::endl;
         }
 
         // Form matrix that will store the temporary results in a chunk
-        res_temp = cx_fmat(arrays_per_chunk, arr_size, fill::zeros);
+        res_temp = cx_fmat(arr_per_chunk, arr_size, fill::zeros);
 
         // form antenna array locations centered around zero and normalize
         d_array_loc = fcolvec(d_num_ant_ele, fill::zeros);
@@ -307,61 +244,39 @@ namespace gr {
         // same matrix U_N_sq and we process the matrix multiplications in chunks
 
         // Pointers to the current and the next input chunks for the CnxArr
-        uint16_t *arr_curr_cnx, *arr_next_cnx, *mat_cnx;
+        uint16_t *arr_curr_cnx = in0_i, *mat_cnx = in1_i;
+        int32_t *res_curr_cnx = res_mult;
 
-        // Prepare the first chunk
-        arr_curr_cnx = in0_i;
-        mat_cnx = in1_i;
+        // Indices of current array chunks in matrix format
+        int idx_curr_chunk = 0;
 
-        // Pointers to the current and past result chunks
-        int32_t *res_curr_cnx = NULL, *res_past_cnx = NULL;
-
-        // Indices of next, past and current array chunks in matrix format
-        int idx_curr_chunk = 0, idx_next_chunk, idx_past_chunk;
-
-        // Prepare current matrix for storage in Connex
+        // Prepare & write matrix for storage in Connex
         prepareInMatConnex(mat_cnx, U_N_sq);
+        connex->writeDataToArray(mat_cnx, LS_per_mat, 900);
 
-        connex->writeDataToArray(mat_cnx, 1, 900);
-
-        int last_chunk = nr_chunks - 1;
-        int ls_to_write = 0;
-
-        executeLocalKernel(connex, "initIndex");
+        executeLocalKernel(connex, init_index_name.c_str());
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
-          res_curr_cnx = &res_mult[cnt_chunk * nr_elem_calc_c];
+          connex->writeDataToArray(arr_curr_cnx, LS_per_chunk, 0);
 
-          connex->writeDataToArray(arr_curr_cnx, iterations_per_chunk, ls_to_write);
-
-          int res = executeLocalKernel(connex, "multiplyArrMatKernel");
+          int res = executeLocalKernel(connex, mult_kernel_name.c_str());
           if (res) {
-            return noutput_items;
+            std::cout << "Error in kernel execution!" << std::endl;
           }
 
-          // Process past data for all but the first chunk
-          if (cnt_chunk != 0) {
-            int idx_past_results = (cnt_chunk - 1) * arrays_per_chunk;
+          connex->readMultiReduction(red_per_chunk, res_curr_cnx);
 
-            prepareOutDataConnex(res_temp, res_past_cnx);
-            processOutData(out_vec, idx_past_results, res_temp, d_vii_matrix, idx_past_chunk);
-          }
+          prepareOutDataConnex(res_temp, res_curr_cnx);
 
-          // 2 * ---> complex elements, so we have real *and* imag parts
-          connex->readMultiReduction(nr_elem_calc_c, res_curr_cnx);
+          processOutData(out_vec, cnt_chunk * arr_per_chunk, res_temp,
+          d_vii_matrix, idx_curr_chunk, arr_per_chunk);
 
           // Increment for next chunk
-          arr_curr_cnx += iterations_per_chunk * vector_array_size;
-          idx_next_chunk = idx_curr_chunk + arrays_per_chunk;
-          idx_past_chunk = idx_curr_chunk;
-          idx_curr_chunk = idx_next_chunk;
-          res_past_cnx = res_curr_cnx;
-          ls_to_write += iterations_per_chunk;
+          arr_curr_cnx += LS_per_chunk * vector_array_size;
+          idx_curr_chunk += arr_per_chunk;
+          res_curr_cnx += red_per_chunk;
         } // end loop for each chunk
 
-        // Results for the last chunk
-        prepareOutDataConnex(res_temp, res_past_cnx);
-        processOutData(out_vec, last_chunk * arrays_per_chunk, res_temp, d_vii_matrix, idx_past_chunk);
 
         out_vec = 10.0 * log10(out_vec/out_vec.max());
       }
@@ -372,43 +287,150 @@ namespace gr {
       return noutput_items;
     }
 
+
+    void MUSIC_lin_array_cnx_impl::splitArraysInChunks(
+      int &arr_per_chunk_, int &nr_chunks_, const int &LS_for_mat_, const int
+      &nr_arrays_, const int &arr_per_LS_)
+    {
+       // ***Find maximum possible chunk by splitting (if necessary) the total
+      // number of arrays in equal chunks
+      int available_LS = local_storage_size - LS_for_mat_; // only one line with the mat
+      int arrays_to_fit = available_LS * arr_per_LS_;
+      int remainder = 1;
+      nr_chunks_ = 1;
+      do {
+        arr_per_chunk_ = nr_arrays_ / nr_chunks_;
+        remainder = nr_arrays_ % nr_chunks_;
+        nr_chunks_++;
+      } while ((arr_per_chunk_ > arrays_to_fit) || // still not enough space => keep going
+               (remainder != 0)); // chunk is not equal => keep going
+      nr_chunks_--; // when the loop is over the nr_chunks is incremented more than needed
+    }
+
+    void MUSIC_lin_array_cnx_impl::calculateChunkingParameters(
+      int &nr_red_blocks_, int &size_red_block_, int &nr_red_last_mat_chunk_)
+    {
+      // ***Check if we have at least one whole matrix in a LS or if the matrix is
+      // split across multiple LSs
+      if (mat_size_c <= vector_array_size) {
+        // At least one matrix in the LS
+        // Use kernels for smaller arrays
+        init_index_name = "initIndex";
+        mult_kernel_name = "multiplyArrMatKernel";
+
+        // ***See how many whole matrices fit in a LS
+        nr_repeat_mat = vector_array_size / mat_size_c;
+        padding = vector_array_size - nr_repeat_mat * mat_size_c;
+        nr_repeat_arr = arr_size; // repeat for each column in the array
+        mat_cols_per_LS = arr_size;
+
+        arr_per_LS = nr_repeat_mat;
+
+        LS_per_mat = 1;
+
+        // The matrix will be saved from the LS in a register before loading the
+        // arrays, so it will not be overwritten
+        int temp_LS_per_mat = 0;
+
+        // ***Find maximum array chunk
+        splitArraysInChunks(arr_per_chunk, nr_chunks, temp_LS_per_mat, nr_arrays, arr_per_LS);
+
+        // ***Calculate parameters per kernel
+        nr_red_blocks_ = nr_repeat_mat * arr_size; // calculated per LS
+        nr_red_last_mat_chunk_ = 0;
+
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
+        // 2 * => because we have one reduction for the real part and one for the imaginary
+        red_per_chunk = 2 * nr_red_blocks_ * LS_per_chunk;
+      } else {
+        // Split matrix in chunks
+        // Use kernels for larger arrays
+        init_index_name = "initIndexLarge";
+        mult_kernel_name = "multiplyArrMatKernelLarge";
+
+        // ***See how many whole matrix columns fit in a LS
+        int mat_col_size = arr_size_c; // just an alias
+        mat_cols_per_LS = vector_array_size / mat_col_size;
+        padding = vector_array_size % mat_col_size;
+
+        // ***See how many LSs we need to store a mat
+        LS_per_mat = arr_size / mat_cols_per_LS;
+        int remainder_last_mat_chunk = arr_size % mat_cols_per_LS;
+        if (remainder_last_mat_chunk != 0) {
+          // Last LS with matrix columns is incomplete
+          LS_per_mat++;
+          nr_red_last_mat_chunk_ = remainder_last_mat_chunk;
+        } else {
+          // Last LS with matrix columns is complete
+          nr_red_last_mat_chunk_ = mat_cols_per_LS;
+        }
+        nr_red_blocks_ = mat_cols_per_LS; // calculated per LS
+
+        nr_repeat_arr = mat_cols_per_LS;
+        nr_repeat_mat = 0; // set to zero to differentiate from the first case
+
+        arr_per_LS = 1;
+
+        // ***Find maximum array chunk
+        splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
+
+        LS_per_chunk = arr_per_chunk / arr_per_LS;
+        red_per_chunk = 2 * arr_per_chunk * arr_size;
+      }
+      size_red_block_ = arr_size_c;
+    }
+
     /*===================================================================
-     * Method that prepare in/out data to work with the ConnexArray
+     * Method that prepares in/out data to work with the ConnexArray
      * Prepare = scale and cast
      *===================================================================*/
-    // TODO possibly pointless to pass arr_to_prepare
     void MUSIC_lin_array_cnx_impl::prepareInArrConnex(
       uint16_t *out_arr, const cx_fmat &in_data)
     {
       int idx_cnx = 0;
 
+      // TODO create separate branches for padding to avoid checking everytime
       for (int j = 0; j < nr_arrays; j++) { // for each array
-        for (int k = 0; k < arr_size; k++) { // store each array this many times
+        for (int k = 0; k < nr_repeat_arr; k++) { // store each array this many times
           for (int i = 0; i < arr_size; i++) {
             out_arr[idx_cnx++] = static_cast<uint16_t>(real(in_data(i, j)) * factor_mult1);
             out_arr[idx_cnx++] = static_cast<uint16_t>(imag(in_data(i, j)) * factor_mult1);
           }
         }
-        idx_cnx += padding;
+        if (padding != 0)
+          if ((j + 1) % arr_per_LS == 0) {
+            // Must add padding before the next element
+            idx_cnx += padding;
+          }
       }
     }
 
-    // TODO Adapt function to take into account the case when the matrix doesn't
-    // fit into a single LS
     void MUSIC_lin_array_cnx_impl::prepareInMatConnex(
       uint16_t *out_mat, const cx_fmat &in_mat)
     {
-      // Only one LS will contain the matrix => See how many times we have to
-      // repeat it to store it in the one LS
-      const int nr_repeats = vector_array_size / mat_size_c;
       int idx_cnx = 0;
 
-      for (int cnt_r = 0; cnt_r < nr_repeats; cnt_r++) {
-        // Store column-first
-        for (int j = 0; j < arr_size; j++) {
-          for (int i = 0; i < arr_size; i++) {
+      // Separate branches to avoid checking for padding each time
+      if (nr_repeat_mat != 0) {
+        // Don't need to add padding
+        for (int cnt_r = 0; cnt_r < nr_repeat_mat; cnt_r++) { // repeat this many times
+          for (int j = 0; j < arr_size; j++) { // for each column
+            for (int i = 0; i < arr_size; i++) { // for each element in column
+              out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
+              out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+            }
+          }
+        }
+      } else {
+        // Don't need to repeat the mat
+        for (int j = 0; j < arr_size; j++) { // for each column
+          for (int i = 0; i < arr_size; i++) { // for each element in column
             out_mat[idx_cnx++] = static_cast<uint16_t>(real(in_mat(i, j)) * factor_mult2);
             out_mat[idx_cnx++] = static_cast<uint16_t>(imag(in_mat(i, j)) * factor_mult2);
+          }
+          // Add pading after a number of mat_cols_per_LS columns
+          if ((j + 1) % mat_cols_per_LS == 0) {
+            idx_cnx += padding;
           }
         }
       }
@@ -422,7 +444,7 @@ namespace gr {
 
       // Resultig array of a multiplication is stored column-wise for faster
       // access, since Armadillo matrices are stored column-wise
-      for (int i = 0; i < arrays_per_chunk; i++) {
+      for (int i = 0; i < arr_per_chunk; i++) {
         for (int j = 0; j < arr_size; j++) {
           temp0 = (static_cast<float>(raw_out_data[cnt_cnx++]));
           temp1 = (static_cast<float>(raw_out_data[cnt_cnx++]));
@@ -433,16 +455,18 @@ namespace gr {
     }
 
     void MUSIC_lin_array_cnx_impl::processOutData(
-      fvec &out_vec, const int idx_to_start, cx_fmat &temp_res, cx_fmat &in_arr,
-      const int arr_to_start)
+      fvec &out_vec, const int &idx_to_start,
+      cx_fmat &temp_res, cx_fmat &in_arr,
+      const int &arr_to_start, const int &nr_arr_to_process)
     {
       int idx_out = idx_to_start;
       gr_complex temp_out;
 
       int j, k;
 
-      for (j = 0, k = arr_to_start; j < arrays_per_chunk; j++, k++) {
+      for (j = 0, k = arr_to_start; j < nr_arr_to_process; j++, k++) {
         temp_out = as_scalar(temp_res.row(j) * in_arr.col(k));
+
         out_vec(idx_out++) = 1.0 / (temp_out.real() / factor_res);
       }
     }
@@ -462,17 +486,18 @@ namespace gr {
       return 0;
     }
 
+
     void MUSIC_lin_array_cnx_impl::init_kernel(int size_of_block)
     {
       BEGIN_KERNEL("initKernel");
         EXECUTE_IN_ALL(
-          R25 = 0;
-          R26 = 900;
-          R30 = 1;
-          R31 = 0;
-          R28 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
+          R10 = 0;
+          R11 = 1;
+          R12 = 0;
+          R13 = 900;
+          R14 = size_of_block;  // Equal to ARR_SIZE_C; dimension of the blocks
                                 // on which reduction is performed at once
-          R9 = INDEX;           // Select only the odd PEs
+          R8 = INDEX;           // Select only the odd PEs
         )
       END_KERNEL("initKernel");
     }
@@ -481,67 +506,71 @@ namespace gr {
     {
       BEGIN_KERNEL("initIndex");
         EXECUTE_IN_ALL(
-          R25 = 0;
-          R2 = LS[R26];           // load input matrix
+          R2 = LS[R13];                 // load input matrix
         )
       END_KERNEL("initIndex");
     }
 
     void MUSIC_lin_array_cnx_impl::multiply_kernel(
-      int iterations_per_chunk, int size_of_block, int blocks_to_reduce)
+      int LS_per_iteration, int size_reduction_block, int blocks_to_reduce)
     {
+      // TODO: maybe make LS_per_iteration loop with repeat
       BEGIN_KERNEL("multiplyArrMatKernel");
-        for (int i = 0; i < iterations_per_chunk; i++) {
-          EXECUTE_IN_ALL(
-            R1 = LS[R25];         // load input array
-            R29 = INDEX;          // Used later to select PEs for reduction
-            R27 = size_of_block;  // Used to select blocks for reduction
+        EXECUTE_IN_ALL(
+          R12 = 0;                        // reset array LS index
+        )
 
-            R3 = R1 * R2;         // a1 * a2, b1 * b2
+        for (int i = 0; i < LS_per_iteration; i++) {
+          EXECUTE_IN_ALL(
+            R1 = LS[R12];               // load input array
+            R15 = INDEX;                // Used later to select PEs for reduction
+            R6 = size_reduction_block;  // Used to select blocks for reduction
+
+            R3 = R1 * R2;               // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
 
-            CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
+            CELL_SHL(R2, R11);          // Bring b2 to the left to calc b2 * a1
             NOP;
             R4 = SHIFT_REG;
-            R4 = R1 * R4;         // a1 * b2
+            R4 = R1 * R4;               // a1 * b2
             R4 = MULT_HIGH();
 
-            CELL_SHR(R2, R30);
+            CELL_SHR(R2, R11);
             NOP;
             R5 = SHIFT_REG;
-            R5 = R1 * R5;         // b1 * a2
+            R5 = R1 * R5;               // b1 * a2
             R5 = MULT_HIGH();
 
-            R10 = R9 & R30;
-            R7 = (R10 == R30);
+            R9 = R8 & R11;
+            R7 = (R9 == R11);
             NOP;
           )
 
-          EXECUTE_WHERE_EQ(       // Only in the odd PEs
+          EXECUTE_WHERE_EQ(             // Only in the odd PEs
             // Getting -b1 * b2 in each odd cell
-            R3 = R31 - R3;        // All partial real parts are in R3
+            R3 = R10 - R3;              // All partial real parts are in R3
 
-            R4 = R5;              // All partial imaginary parts are now in R4
+            R4 = R5;                    // All partial imaginary parts are now in R4
           )
 
           REPEAT_X_TIMES(blocks_to_reduce);
             EXECUTE_IN_ALL(
-              R7 = (R29 < R27);   // Select only blocks of PEs at a time
+              R7 = (R15 < R6);          // Select only blocks of PEs at a time
               NOP;
             )
             EXECUTE_WHERE_LT(
-              R29 = 129;          // A random number > 128 so these PEs won't be
-                                  // selected again
-              REDUCE(R3);         // Real part
-              REDUCE(R4);         // Imaginary part
+              R15 = 129;                // A random number > 128 so these PEs won't be
+                                        // selected again
+              REDUCE(R3);               // Real part
+              REDUCE(R4);               // Imaginary part
             )
             EXECUTE_IN_ALL(
-              R27 = R27 + R28;    // Go to the next block of PEs
+              R6 = R6 + R14;            // Go to the next block of PEs
             )
           END_REPEAT;
 
           EXECUTE_IN_ALL(
-            R25 = R25 + R30;      // Go to the next LS
+            R12 = R12 + R11;            // Go to the next LS
           )
         }
       END_KERNEL("multiplyArrMatKernel");
@@ -551,133 +580,136 @@ namespace gr {
     {
       BEGIN_KERNEL("initIndexLarge");
         EXECUTE_IN_ALL(
-          R25 = 0;
+          R12 = 0;                      // reset array LS index
         )
       END_KERNEL("initIndexLarge");
     }
 
-
     void MUSIC_lin_array_cnx_impl::multiply_kernel_large(
-      int n_arr, int n_mat_chunks, int size_of_block, int full_blocks_to_reduce,
-      int partial_blocks_to_reduce)
+      int LS_per_iteration, int LS_per_mat, int size_reduction_block, int
+      blocks_to_reduce, int blocks_to_reduce_last)
     {
       BEGIN_KERNEL("multiplyArrMatKernelLarge");
-        for (int i = 0; i < n_arr; i++) { // for each array
+        EXECUTE_IN_ALL(
+          R12 = 0;                         // reset array LS index
+        )
+
+        for (int i = 0; i < LS_per_iteration; i++) { // for each array in chunk
           EXECUTE_IN_ALL(
-            R1 = LS[R25];         // load input array
-            R26 = 900;            // Reset matrix index
+            R1 = LS[R12];                 // load input array
+            R13 = 900;
           )
 
-          for (int j = 0; j <  n_mat_chunks - 1; j++) { // for each chunk except the last
+          // For each matrix chunk except the last
+          for (int j = 0; j < LS_per_mat - 1; j++) {
             EXECUTE_IN_ALL(
-              R2 = LS[R26];         // Load matrix chunk
-              R29 = INDEX;          // Used later to select PEs for reduction
-              R27 = size_of_block;  // Used to select blocks for reduction
+              R2 = LS[R13];               // load input matrix
+              R15 = INDEX;                // Used later to select PEs for reduction
+              R6 = size_reduction_block;  // Used to select blocks for reduction
 
-              R3 = R1 * R2;         // a1 * a2, b1 * b2
+              R3 = R1 * R2;               // a1 * a2, b1 * b2
               R3 = MULT_HIGH();
 
-              CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
+              CELL_SHL(R2, R11);          // Bring b2 to the left to calc b2 * a1
               NOP;
               R4 = SHIFT_REG;
-              R4 = R1 * R4;         // a1 * b2
+              R4 = R1 * R4;               // a1 * b2
               R4 = MULT_HIGH();
 
-              CELL_SHR(R2, R30);
+              CELL_SHR(R2, R11);
               NOP;
               R5 = SHIFT_REG;
-              R5 = R1 * R5;         // b1 * a2
+              R5 = R1 * R5;               // b1 * a2
               R5 = MULT_HIGH();
 
-              R10 = R9 & R30;
-              R7 = (R10 == R30);
+              R9 = R8 & R11;
+              R7 = (R9 == R11);
               NOP;
             )
 
-            EXECUTE_WHERE_EQ(       // Only in the odd PEs
+            EXECUTE_WHERE_EQ(             // Only in the odd PEs
               // Getting -b1 * b2 in each odd cell
-              R3 = R31 - R3;        // All partial real parts are in R3
+              R3 = R10 - R3;              // All partial real parts are in R3
 
-              R4 = R5;              // All partial imaginary parts are now in R4
+              R4 = R5;                    // All partial imaginary parts are now in R4
             )
 
-            REPEAT_X_TIMES(full_blocks_to_reduce);
+            REPEAT_X_TIMES(blocks_to_reduce);
               EXECUTE_IN_ALL(
-                R7 = (R29 < R27);   // Select only blocks of PEs at a time
+                R7 = (R15 < R6);          // Select only blocks of PEs at a time
                 NOP;
               )
               EXECUTE_WHERE_LT(
-                R29 = 129;          // A random number > 128 so these PEs won't be
-                                    // selected again
-                REDUCE(R3);         // Real part
-                REDUCE(R4);         // Imaginary part
+                R15 = 129;                // A random number > 128 so these PEs won't be
+                                          // selected again
+                REDUCE(R3);               // Real part
+                REDUCE(R4);               // Imaginary part
               )
               EXECUTE_IN_ALL(
-                R27 = R27 + R28;    // Go to the next block of PEs
+                R6 = R6 + R14;            // Go to the next block of PEs
               )
             END_REPEAT;
 
             EXECUTE_IN_ALL(
-              R26 = R26 + R30;      // Go to the next matrix chunk
+              R13 = R13 + R11;            // Go to the next LS with mat
             )
-          } // end for each matrix LS
+          } // end for each column of mat
 
-          // do the last processing
+          // The last matrix chunk may be incomplete, so we treat it differently
+          // to avoid doing unnecessary reductions
           EXECUTE_IN_ALL(
-            R2 = LS[R26];         // Load matrix chunk
-            R29 = INDEX;          // Used later to select PEs for reduction
-            R27 = size_of_block;  // Used to select blocks for reduction
+            R2 = LS[R13];                 // load input matrix
+            R15 = INDEX;                  // Used later to select PEs for reduction
+            R6 = size_reduction_block;    // Used to select blocks for reduction
 
-            R3 = R1 * R2;         // a1 * a2, b1 * b2
+            R3 = R1 * R2;                 // a1 * a2, b1 * b2
             R3 = MULT_HIGH();
 
-            CELL_SHL(R2, R30);    // Bring b2 to the left to calc b2 * a1
+            CELL_SHL(R2, R11);            // Bring b2 to the left to calc b2 * a1
             NOP;
             R4 = SHIFT_REG;
-            R4 = R1 * R4;         // a1 * b2
+            R4 = R1 * R4;                 // a1 * b2
             R4 = MULT_HIGH();
 
-            CELL_SHR(R2, R30);
+            CELL_SHR(R2, R11);
             NOP;
             R5 = SHIFT_REG;
-            R5 = R1 * R5;         // b1 * a2
+            R5 = R1 * R5;                 // b1 * a2
             R5 = MULT_HIGH();
 
-            R10 = R9 & R30;
-            R7 = (R10 == R30);
-            NOP;
+            R9 = R8 & R11;
+            R7 = (R9 == R11);
           )
 
-          EXECUTE_WHERE_EQ(       // Only in the odd PEs
+          EXECUTE_WHERE_EQ(               // Only in the odd PEs
             // Getting -b1 * b2 in each odd cell
-            R3 = R31 - R3;        // All partial real parts are in R3
+            R3 = R10 - R3;                // All partial real parts are in R3
 
-            R4 = R5;              // All partial imaginary parts are now in R4
+            R4 = R5;                      // All partial imaginary parts are now in R4
           )
 
-          REPEAT_X_TIMES(partial_blocks_to_reduce);
+          REPEAT_X_TIMES(blocks_to_reduce_last);
             EXECUTE_IN_ALL(
-              R7 = (R29 < R27);   // Select only blocks of PEs at a time
-              NOP;
+              R7 = (R15 < R6);            // Select only blocks of PEs at a time
             )
             EXECUTE_WHERE_LT(
-              R29 = 129;          // A random number > 128 so these PEs won't be
-                                  // selected again
-              REDUCE(R3);         // Real part
-              REDUCE(R4);         // Imaginary part
+              R15 = 129;                  // A random number > 128 so these PEs won't be
+                                          // selected again
+              REDUCE(R3);                 // Real part
+              REDUCE(R4);                 // Imaginary part
             )
             EXECUTE_IN_ALL(
-              R27 = R27 + R28;    // Go to the next block of PEs
+              R6 = R6 + R14;              // Go to the next block of PEs
             )
           END_REPEAT;
+          // End processing for last matrix chunk
 
-          EXECUTE_IN_ALL(
-            R25 = R25 + R30;      // Go to the next array
+        EXECUTE_IN_ALL(
+            R12 = R12 + R11;              // Go to the next array
           )
         } // end for each array
       END_KERNEL("multiplyArrMatKernelLarge");
     }
-
 
   } /* namespace doa */
 } /* namespace gr */
