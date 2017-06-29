@@ -23,6 +23,9 @@
 
 #include <doa/autocorrelateConnexKernel.h>
 #include <armadillo>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include "ConnexMachine.h"
 
 namespace gr {
@@ -76,26 +79,16 @@ namespace gr {
       int n_red;
       int n_red_per_elem;
 
-      /*
-       * ConnexArray specific constants
-       */
+      // ConnexArray specific constants
       const int vector_array_size = 128;
       const int local_storage_size = 1024;
 
-      /*
-       * There must be space for at least 2 * n_elems_in at the address pointed
-       * by out_data.
-       */
       void prepareInData(
         uint16_t *out_data,
         const gr_complex *in_data,
         const int &n_elems_in,
         const int &padding_);
 
-      /*
-       * There must be space for at least n_elems_in / 2 at the address pointed
-       * by out_data.
-       */
       void prepareOutData(
         gr_complex *out_data,
         const int32_t *in_data,
@@ -109,10 +102,20 @@ namespace gr {
 
       gr_complex prepareAndProcessOutData(
         const int32_t *in_data, const int &n_elems_in);
+      void averageResults(gr_complex *out_data);
 
       int executeLocalKernel(ConnexMachine *connex, std::string kernel_name);
       void initKernel(const int &LS_per_row_);
       void autocorrelationKernel(const int &iterations_per_array);
+
+      // Multithreading related
+      std::mutex m;
+      std::condition_variable cv;
+
+      void prepareWriteExecute(
+        gr_vector_const_void_star &input_items,
+        int nr_in_item);
+
 
      public:
       autocorrelateConnexKernel_impl(
