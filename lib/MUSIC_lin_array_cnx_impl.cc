@@ -380,7 +380,7 @@ namespace gr {
         // space in the LS, because it will be saved in the registers beforehand
         int temp_LS_per_mat;
         // Use kernels for larger arrays
-        if (arr_size <= 16) {
+        if (arr_size <= 32) {
           init_index_name = "initIndexLarge";
           mult_kernel_name = "multiplyArrMatKernelLarge";
           temp_LS_per_mat = 0;
