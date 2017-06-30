@@ -703,6 +703,7 @@ namespace gr {
 
             R9 = R8 & R11;
             R7 = (R9 == R11);
+            NOP;
           )
 
           EXECUTE_WHERE_EQ(               // Only in the odd PEs
@@ -715,6 +716,7 @@ namespace gr {
           REPEAT_X_TIMES(blocks_to_reduce_last);
             EXECUTE_IN_ALL(
               R7 = (R0 < R6);            // Select only blocks of PEs at a time
+              NOP;
             )
             EXECUTE_WHERE_LT(
               R0 = 129;                  // A random number > 128 so these PEs won't be
@@ -838,6 +840,7 @@ namespace gr {
 
             R9 = R8 & R11;
             R7 = (R9 == R11);
+            NOP;
           )
 
           EXECUTE_WHERE_EQ(               // Only in the odd PEs
@@ -850,6 +853,7 @@ namespace gr {
           REPEAT_X_TIMES(blocks_to_reduce_last);
             EXECUTE_IN_ALL(
               R7 = (R0 < R6);            // Select only blocks of PEs at a time
+              NOP;
             )
             EXECUTE_WHERE_LT(
               R0 = 129;                  // A random number > 128 so these PEs won't be
