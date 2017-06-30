@@ -127,7 +127,7 @@ namespace gr {
               multiply_kernel_large(LS_per_chunk, LS_per_mat, size_red_block,
                 nr_red_blocks, nr_red_blocks_last);
             } else {
-              init_index_64(void);
+              init_index_64();
               multiply_kernel_64(LS_per_chunk, LS_per_mat, size_red_block,
                 nr_red_blocks, nr_red_blocks_last);
             }
