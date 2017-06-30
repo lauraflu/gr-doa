@@ -344,9 +344,6 @@ namespace gr {
         red_per_chunk = 2 * nr_red_blocks_ * LS_per_chunk;
       } else {
         // Split matrix in chunks
-        // Use kernels for larger arrays
-        init_index_name = "initIndexLarge";
-        mult_kernel_name = "multiplyArrMatKernelLarge";
 
         // ***See how many whole matrix columns fit in a LS
         int mat_col_size = arr_size_c; // just an alias
@@ -371,8 +368,22 @@ namespace gr {
 
         arr_per_LS = 1;
 
+        // For <= 16 antennas, don't take into account the matrix as occupying
+        // space in the LS, because it will be saved in the registers beforehand
+        int temp_LS_per_mat;
+        // Use kernels for larger arrays
+        if (arr_size <= 16) {
+          init_index_name = "initIndexLarge";
+          mult_kernel_name = "multiplyArrMatKernelLarge";
+          temp_LS_per_mat = 0;
+        } else {
+          init_index_name = "initIndex64";
+          mult_kernel_name = "multiplyArrMatKernel64";
+          temp_LS_per_mat = LS_per_mat;
+        }
+
         // ***Find maximum array chunk
-        splitArraysInChunks(arr_per_chunk, nr_chunks, LS_per_mat, nr_arrays, arr_per_LS);
+        splitArraysInChunks(arr_per_chunk, nr_chunks, temp_LS_per_mat, nr_arrays, arr_per_LS);
 
         LS_per_chunk = arr_per_chunk / arr_per_LS;
         red_per_chunk = 2 * arr_per_chunk * arr_size;
