@@ -122,9 +122,15 @@ namespace gr {
             init_index();
             multiply_kernel(LS_per_chunk, size_red_block, nr_red_blocks);
           } else {
-            init_index_large(LS_per_mat);
-            multiply_kernel_large(LS_per_chunk, LS_per_mat, size_red_block,
-            nr_red_blocks, nr_red_blocks_last);
+            if (arr_size <= 16) {
+              init_index_large(LS_per_mat);
+              multiply_kernel_large(LS_per_chunk, LS_per_mat, size_red_block,
+                nr_red_blocks, nr_red_blocks_last);
+            } else {
+              init_index_64(void);
+              multiply_kernel_64(LS_per_chunk, LS_per_mat, size_red_block,
+                nr_red_blocks, nr_red_blocks_last);
+            }
           }
         } catch (std::string e) {
           std::cout << e << std::endl;
