@@ -96,23 +96,23 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-//        std::cout << "Parameters: " << std::endl;
-//        std::cout << "===========================================" << std::endl;
-//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-//
-//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-//        std::cout << "nr_red_blocks_last: " << nr_red_blocks_last << std::endl;
-//
-//        std::cout << "size_red_block: " << size_red_block << std::endl;
-//        std::cout << "padding: " << padding << std::endl;
+        std::cout << "Parameters: " << std::endl;
+        std::cout << "===========================================" << std::endl;
+        std::cout << "nr_chunks: " << nr_chunks << std::endl;
+        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
+        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
+        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
+        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
+        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
+        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
+        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
+
+        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
+        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
+        std::cout << "nr_red_blocks_last: " << nr_red_blocks_last << std::endl;
+
+        std::cout << "size_red_block: " << size_red_block << std::endl;
+        std::cout << "padding: " << padding << std::endl;
 
         // Create the kernel
         try {
@@ -122,7 +122,7 @@ namespace gr {
             init_index();
             multiply_kernel(LS_per_chunk, size_red_block, nr_red_blocks);
           } else {
-            init_index_large();
+            init_index_large(LS_per_mat);
             multiply_kernel_large(LS_per_chunk, LS_per_mat, size_red_block,
             nr_red_blocks, nr_red_blocks_last);
           }
@@ -523,7 +523,7 @@ namespace gr {
         for (int i = 0; i < LS_per_iteration; i++) {
           EXECUTE_IN_ALL(
             R1 = LS[R12];               // load input array
-            R15 = INDEX;                // Used later to select PEs for reduction
+            R0 = INDEX;                // Used later to select PEs for reduction
             R6 = size_reduction_block;  // Used to select blocks for reduction
 
             R3 = R1 * R2;               // a1 * a2, b1 * b2
@@ -555,11 +555,11 @@ namespace gr {
 
           REPEAT_X_TIMES(blocks_to_reduce);
             EXECUTE_IN_ALL(
-              R7 = (R15 < R6);          // Select only blocks of PEs at a time
+              R7 = (R0 < R6);          // Select only blocks of PEs at a time
               NOP;
             )
             EXECUTE_WHERE_LT(
-              R15 = 129;                // A random number > 128 so these PEs won't be
+              R0 = 129;                // A random number > 128 so these PEs won't be
                                         // selected again
               REDUCE(R3);               // Real part
               REDUCE(R4);               // Imaginary part
@@ -576,14 +576,21 @@ namespace gr {
       END_KERNEL("multiplyArrMatKernel");
     }
 
-    void MUSIC_lin_array_cnx_impl::init_index_large(void)
+    void MUSIC_lin_array_cnx_impl::init_index_large(int LS_per_mat)
     {
       BEGIN_KERNEL("initIndexLarge");
         EXECUTE_IN_ALL(
           R12 = 0;                      // reset array LS index
+          // Save matrix straight in register, starting from the 15th. Works
+          // only for <= 32 antennas because we have only 16 spare registers
+          for (int i = 0; i < LS_per_mat; i++) {
+            R(i + 15) = LS[900 + i];
+          }
         )
       END_KERNEL("initIndexLarge");
     }
+
+
 
     void MUSIC_lin_array_cnx_impl::multiply_kernel_large(
       int LS_per_iteration, int LS_per_mat, int size_reduction_block, int
@@ -597,14 +604,14 @@ namespace gr {
         for (int i = 0; i < LS_per_iteration; i++) { // for each array in chunk
           EXECUTE_IN_ALL(
             R1 = LS[R12];                 // load input array
-            R13 = 900;
+//            R13 = 900;
           )
 
           // For each matrix chunk except the last
           for (int j = 0; j < LS_per_mat - 1; j++) {
             EXECUTE_IN_ALL(
-              R2 = LS[R13];               // load input matrix
-              R15 = INDEX;                // Used later to select PEs for reduction
+              R2 = R(15 + j);             // load input matrix
+              R0 = INDEX;                 // Used later to select PEs for reduction
               R6 = size_reduction_block;  // Used to select blocks for reduction
 
               R3 = R1 * R2;               // a1 * a2, b1 * b2
@@ -636,11 +643,11 @@ namespace gr {
 
             REPEAT_X_TIMES(blocks_to_reduce);
               EXECUTE_IN_ALL(
-                R7 = (R15 < R6);          // Select only blocks of PEs at a time
+                R7 = (R0 < R6);          // Select only blocks of PEs at a time
                 NOP;
               )
               EXECUTE_WHERE_LT(
-                R15 = 129;                // A random number > 128 so these PEs won't be
+                R0 = 129;                // A random number > 128 so these PEs won't be
                                           // selected again
                 REDUCE(R3);               // Real part
                 REDUCE(R4);               // Imaginary part
@@ -650,16 +657,16 @@ namespace gr {
               )
             END_REPEAT;
 
-            EXECUTE_IN_ALL(
-              R13 = R13 + R11;            // Go to the next LS with mat
-            )
+//            EXECUTE_IN_ALL(
+//              R13 = R13 + R11;            // Go to the next LS with mat
+//            )
           } // end for each column of mat
 
           // The last matrix chunk may be incomplete, so we treat it differently
           // to avoid doing unnecessary reductions
           EXECUTE_IN_ALL(
-            R2 = LS[R13];                 // load input matrix
-            R15 = INDEX;                  // Used later to select PEs for reduction
+            R2 = R(15 + LS_per_mat - 1);                 // load input matrix
+            R0 = INDEX;                  // Used later to select PEs for reduction
             R6 = size_reduction_block;    // Used to select blocks for reduction
 
             R3 = R1 * R2;                 // a1 * a2, b1 * b2
@@ -690,10 +697,145 @@ namespace gr {
 
           REPEAT_X_TIMES(blocks_to_reduce_last);
             EXECUTE_IN_ALL(
-              R7 = (R15 < R6);            // Select only blocks of PEs at a time
+              R7 = (R0 < R6);            // Select only blocks of PEs at a time
             )
             EXECUTE_WHERE_LT(
-              R15 = 129;                  // A random number > 128 so these PEs won't be
+              R0 = 129;                  // A random number > 128 so these PEs won't be
+                                          // selected again
+              REDUCE(R3);                 // Real part
+              REDUCE(R4);                 // Imaginary part
+            )
+            EXECUTE_IN_ALL(
+              R6 = R6 + R14;              // Go to the next block of PEs
+            )
+          END_REPEAT;
+          // End processing for last matrix chunk
+
+          EXECUTE_IN_ALL(
+            R12 = R12 + R11;              // Go to the next array
+          )
+        } // end for each array
+      END_KERNEL("multiplyArrMatKernelLarge");
+    }
+
+    void MUSIC_lin_array_cnx_impl::init_index_64(void)
+    {
+      BEGIN_KERNEL("initIndex64");
+        EXECUTE_IN_ALL(
+          R12 = 0;                      // reset array LS index
+        )
+      END_KERNEL("initIndex64");
+    }
+
+    void MUSIC_lin_array_cnx_impl::multiply_kernel_64(
+      int LS_per_iteration, int LS_per_mat, int size_reduction_block, int
+      blocks_to_reduce, int blocks_to_reduce_last)
+    {
+      BEGIN_KERNEL("multiplyArrMatKernel64");
+        EXECUTE_IN_ALL(
+          R12 = 0;                         // reset array LS index
+        )
+
+        for (int i = 0; i < LS_per_iteration; i++) { // for each array in chunk
+          EXECUTE_IN_ALL(
+            R1 = LS[R12];                 // load input array
+            R13 = 900;
+          )
+
+          // For each matrix chunk except the last
+          for (int j = 0; j < LS_per_mat - 1; j++) {
+            EXECUTE_IN_ALL(
+              R2 = LS[R13];               // load input matrix
+              R0 = INDEX;                // Used later to select PEs for reduction
+              R6 = size_reduction_block;  // Used to select blocks for reduction
+
+              R3 = R1 * R2;               // a1 * a2, b1 * b2
+              R3 = MULT_HIGH();
+
+              CELL_SHL(R2, R11);          // Bring b2 to the left to calc b2 * a1
+              NOP;
+              R4 = SHIFT_REG;
+              R4 = R1 * R4;               // a1 * b2
+              R4 = MULT_HIGH();
+
+              CELL_SHR(R2, R11);
+              NOP;
+              R5 = SHIFT_REG;
+              R5 = R1 * R5;               // b1 * a2
+              R5 = MULT_HIGH();
+
+              R9 = R8 & R11;
+              R7 = (R9 == R11);
+              NOP;
+            )
+
+            EXECUTE_WHERE_EQ(             // Only in the odd PEs
+              // Getting -b1 * b2 in each odd cell
+              R3 = R10 - R3;              // All partial real parts are in R3
+
+              R4 = R5;                    // All partial imaginary parts are now in R4
+            )
+
+            REPEAT_X_TIMES(blocks_to_reduce);
+              EXECUTE_IN_ALL(
+                R7 = (R0 < R6);          // Select only blocks of PEs at a time
+                NOP;
+              )
+              EXECUTE_WHERE_LT(
+                R0 = 129;                // A random number > 128 so these PEs won't be
+                                          // selected again
+                REDUCE(R3);               // Real part
+                REDUCE(R4);               // Imaginary part
+              )
+              EXECUTE_IN_ALL(
+                R6 = R6 + R14;            // Go to the next block of PEs
+              )
+            END_REPEAT;
+
+            EXECUTE_IN_ALL(
+              R13 = R13 + R11;            // Go to the next LS with mat
+            )
+          } // end for each column of mat
+
+          // The last matrix chunk may be incomplete, so we treat it differently
+          // to avoid doing unnecessary reductions
+          EXECUTE_IN_ALL(
+            R2 = LS[R13];                 // load input matrix
+            R0 = INDEX;                  // Used later to select PEs for reduction
+            R6 = size_reduction_block;    // Used to select blocks for reduction
+
+            R3 = R1 * R2;                 // a1 * a2, b1 * b2
+            R3 = MULT_HIGH();
+
+            CELL_SHL(R2, R11);            // Bring b2 to the left to calc b2 * a1
+            NOP;
+            R4 = SHIFT_REG;
+            R4 = R1 * R4;                 // a1 * b2
+            R4 = MULT_HIGH();
+
+            CELL_SHR(R2, R11);
+            NOP;
+            R5 = SHIFT_REG;
+            R5 = R1 * R5;                 // b1 * a2
+            R5 = MULT_HIGH();
+
+            R9 = R8 & R11;
+            R7 = (R9 == R11);
+          )
+
+          EXECUTE_WHERE_EQ(               // Only in the odd PEs
+            // Getting -b1 * b2 in each odd cell
+            R3 = R10 - R3;                // All partial real parts are in R3
+
+            R4 = R5;                      // All partial imaginary parts are now in R4
+          )
+
+          REPEAT_X_TIMES(blocks_to_reduce_last);
+            EXECUTE_IN_ALL(
+              R7 = (R0 < R6);            // Select only blocks of PEs at a time
+            )
+            EXECUTE_WHERE_LT(
+              R0 = 129;                  // A random number > 128 so these PEs won't be
                                           // selected again
               REDUCE(R3);                 // Real part
               REDUCE(R4);                 // Imaginary part
@@ -708,9 +850,8 @@ namespace gr {
             R12 = R12 + R11;              // Go to the next array
           )
         } // end for each array
-      END_KERNEL("multiplyArrMatKernelLarge");
+      END_KERNEL("multiplyArrMatKernel64");
     }
-
   } /* namespace doa */
 } /* namespace gr */
 
