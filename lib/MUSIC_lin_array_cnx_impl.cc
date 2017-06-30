@@ -122,7 +122,7 @@ namespace gr {
             init_index();
             multiply_kernel(LS_per_chunk, size_red_block, nr_red_blocks);
           } else {
-            if (arr_size <= 16) {
+            if (arr_size <= 32) {
               init_index_large(LS_per_mat);
               multiply_kernel_large(LS_per_chunk, LS_per_mat, size_red_block,
                 nr_red_blocks, nr_red_blocks_last);
