@@ -261,6 +261,8 @@ namespace gr {
         connex->writeDataToArray(mat_cnx, LS_per_mat, 900);
 
         executeLocalKernel(connex, init_index_name.c_str());
+        // Make sure the init kernel is finished before calling the next
+        connex->readReduction();
 
         for (int cnt_chunk = 0; cnt_chunk < nr_chunks; cnt_chunk++) {
           connex->writeDataToArray(arr_curr_cnx, LS_per_chunk, 0);
@@ -524,6 +526,7 @@ namespace gr {
       BEGIN_KERNEL("initIndex");
         EXECUTE_IN_ALL(
           R2 = LS[R13];                 // load input matrix
+          REDUCE(R0);
         )
       END_KERNEL("initIndex");
     }
@@ -603,11 +606,10 @@ namespace gr {
           for (int i = 0; i < LS_per_mat; i++) {
             R(i + 15) = LS[900 + i];
           }
+          REDUCE(R0);
         )
       END_KERNEL("initIndexLarge");
     }
-
-
 
     void MUSIC_lin_array_cnx_impl::multiply_kernel_large(
       int LS_per_iteration, int LS_per_mat, int size_reduction_block, int
@@ -621,7 +623,6 @@ namespace gr {
         for (int i = 0; i < LS_per_iteration; i++) { // for each array in chunk
           EXECUTE_IN_ALL(
             R1 = LS[R12];                 // load input array
-//            R13 = 900;
           )
 
           // For each matrix chunk except the last
@@ -673,10 +674,6 @@ namespace gr {
                 R6 = R6 + R14;            // Go to the next block of PEs
               )
             END_REPEAT;
-
-//            EXECUTE_IN_ALL(
-//              R13 = R13 + R11;            // Go to the next LS with mat
-//            )
           } // end for each column of mat
 
           // The last matrix chunk may be incomplete, so we treat it differently
@@ -742,6 +739,7 @@ namespace gr {
       BEGIN_KERNEL("initIndex64");
         EXECUTE_IN_ALL(
           R12 = 0;                      // reset array LS index
+          REDUCE(R0);
         )
       END_KERNEL("initIndex64");
     }
