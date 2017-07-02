@@ -5,34 +5,86 @@
   <category>[doa]</category>
   <import>import doa</import>
   <make>doa.autocorrelateConnexKernel($inputs, $snapshot_size, $overlap_size, $avg_method, $distributionFIFO, $reductionFIFO, $writeFIFO, $readFIFO)</make>
-  <!-- Make one 'param' node for every Parameter you want settable from the GUI.
-       Sub-nodes:
-       * name
-       * key (makes the value accessible as $keyname, e.g. in the make node)
-       * type -->
   <param>
-    <name>...</name>
-    <key>...</key>
-    <type>...</type>
+      <name>Snapshot Size</name>
+      <key>snapshot_size</key>
+      <value>2048</value>
+      <type>int</type>
+  </param>
+  <param>
+      <name>Overlap Size</name>
+      <key>overlap_size</key>
+      <value>512</value>
+      <type>int</type>
+  </param>
+  <param>
+      <name>Num Inputs</name>
+      <key>inputs</key>
+      <value>1</value>
+      <type>int</type>
+      </param>
+  <param>
+      <name>Averaging Method</name>
+      <key>avg_method</key>
+      <value>0</value>
+      <type>enum</type>
+      <option>
+        <name>Forward</name>
+        <key>0</key>
+      </option>
+      <option>
+        <name>Forward-Backward</name>
+        <key>1</key>
+      </option>
+  </param> 
+  
+  <param>
+        <name>Distribution FIFO</name>
+        <key>distributionFIFO</key>
+        <value>"distributionFIFO"</value>
+        <type>string</type>
+  </param>
+  <param>
+        <name>Reduction FIFO</name>
+        <key>reductionFIFO</key>
+        <value>"reductionFIFO"</value>
+        <type>string</type>
+  </param>
+  <param>
+        <name>Write FIFO</name>
+        <key>writeFIFO</key>
+        <value>"writeFIFO"</value>
+        <type>string</type>
+  </param>
+  <param>
+        <name>Read FIFO</name>
+        <key>readFIFO</key>
+        <value>"readFIFO"</value>
+        <type>string</type>
   </param>
 
-  <!-- Make one 'sink' node per input. Sub-nodes:
-       * name (an identifier for the GUI)
-       * type
-       * vlen
-       * optional (set to 1 for optional inputs) -->
+
+  
+  <check>$inputs &gt; 0</check>
+  <check>$snapshot_size &gt; 0</check>
+  <check>$overlap_size &lt; $snapshot_size</check>
+
   <sink>
     <name>in</name>
-    <type><!-- e.g. int, float, complex, byte, short, xxx_vector, ...--></type>
+    <type>complex</type>
+    <nports>$inputs</nports>
   </sink>
-
-  <!-- Make one 'source' node per output. Sub-nodes:
-       * name (an identifier for the GUI)
-       * type
-       * vlen
-       * optional (set to 1 for optional inputs) -->
   <source>
     <name>out</name>
-    <type><!-- e.g. int, float, complex, byte, short, xxx_vector, ...--></type>
+    <type>complex</type>
+    <vlen>$inputs*$inputs</vlen>
   </source>
+  <doc>
+This block generates a sample correlation matrix for the input vector comprised of values drawn from the receive channels. 
+Args:
+inputs: Number of inputs to the block
+snapshot_size: Determines num. of samples used to compute the sample correlation matrix
+overlap_size: Overlap size between snapshots
+avg_method: Use either standard forward-averaging method or a forward-backward averaging method to compute the sample correlation matrix.
+  </doc>
 </block>
