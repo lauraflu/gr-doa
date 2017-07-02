@@ -409,6 +409,7 @@ namespace gr {
                 R4 = SHIFT_REG;
                 R4 = R4 * R1;
                 R4 = MULT_HIGH();       // re1 * im2
+                NOP;
                 R4 = R28 - R4;          // The column is conjugated => negate these
 
                 CELL_SHR(R2, R29);
