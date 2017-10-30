@@ -111,9 +111,18 @@ namespace gr {
         int blocks_to_reduce);
 
       // Kernels for processing with large data
-      void init_index_large(void);
+      void init_index_large(int LS_per_mat);
 
       void multiply_kernel_large(
+        int LS_per_iteration,
+        int LS_per_mat,
+        int size_reduction_block,
+        int blocks_to_reduce,
+        int blocks_to_reduce_last);
+
+      void init_index_64(void);
+
+      void multiply_kernel_64(
         int LS_per_iteration,
         int LS_per_mat,
         int size_reduction_block,

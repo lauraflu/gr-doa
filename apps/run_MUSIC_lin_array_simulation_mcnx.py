@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 ##################################################
 # GNU Radio Python Flow Graph
-# Title: Run Music Lin Array Simulation
-# Generated: Sun Jul  2 22:09:59 2017
+# Title: Run Music Lin Array Simulation Mcnx
+# Generated: Mon Jul  3 00:03:29 2017
 ##################################################
 
 if __name__ == '__main__':
@@ -34,12 +34,12 @@ import sys
 from gnuradio import qtgui
 
 
-class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
+class run_MUSIC_lin_array_simulation_mcnx(gr.top_block, Qt.QWidget):
 
     def __init__(self):
-        gr.top_block.__init__(self, "Run Music Lin Array Simulation")
+        gr.top_block.__init__(self, "Run Music Lin Array Simulation Mcnx")
         Qt.QWidget.__init__(self)
-        self.setWindowTitle("Run Music Lin Array Simulation")
+        self.setWindowTitle("Run Music Lin Array Simulation Mcnx")
         qtgui.util.check_set_qss()
         try:
             self.setWindowIcon(Qt.QIcon.fromTheme('gnuradio-grc'))
@@ -57,7 +57,7 @@ class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("GNU Radio", "run_MUSIC_lin_array_simulation")
+        self.settings = Qt.QSettings("GNU Radio", "run_MUSIC_lin_array_simulation_mcnx")
         self.restoreGeometry(self.settings.value("geometry").toByteArray())
 
         ##################################################
@@ -65,7 +65,7 @@ class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
         ##################################################
         self.theta1_deg = theta1_deg = 123
         self.theta0_deg = theta0_deg = 30
-        self.input_variables = input_variables = struct({'SampleRate': 320000, 'ToneFreq1': 10000, 'ToneFreq2': 20000, 'NormSpacing': 0.4, 'NumTargets': 2, 'NumArrayElements': 4, 'PSpectrumLength': 2**10, 'SnapshotSize': 2**11, 'OverlapSize': 2**9, 'distributionFIFO': "distributionFIFO", 'reductionFIFO': "reductionFIFO", 'readFIFO': "readFIFO", 'writeFIFO': "writeFIFO", })
+        self.input_variables = input_variables = struct({'SampleRate': 320000, 'ToneFreq1': 10000, 'ToneFreq2': 20000, 'NormSpacing': 0.4, 'NumTargets': 2, 'NumArrayElements': 8, 'PSpectrumLength': 2**10, 'SnapshotSize': 2**11, 'OverlapSize': 2**9, 'distributionFIFO': "distributionFIFO", 'reductionFIFO': "reductionFIFO", 'readFIFO': "readFIFO", 'writeFIFO': "writeFIFO", })
         self.theta1 = theta1 = numpy.pi*theta1_deg/180
         self.theta0 = theta0 = numpy.pi*theta0_deg/180
         self.ant_locs = ant_locs = numpy.dot(input_variables.NormSpacing, numpy.arange(input_variables.NumArrayElements/2, -input_variables.NumArrayElements/2, -1) if (input_variables.NumArrayElements%2==1) else numpy.arange(input_variables.NumArrayElements/2-0.5, -input_variables.NumArrayElements/2-0.5, -1))
@@ -195,9 +195,8 @@ class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
         self.tab_layout_1.addLayout(self.doa_compass_0.this_layout)
         self.doa_compass = doa.compass("", 0, 180, 10, 0)
         self.tab_layout_2.addLayout(self.doa_compass.this_layout)
-        self.doa_autocorrelate_0 = doa.autocorrelate(input_variables.NumArrayElements, input_variables.SnapshotSize, input_variables.OverlapSize, 1)
-        self.doa_MUSIC_lin_array_cnx_0 = Template error: doa.MUSIC_lin_array_cnx($norm_spacing, $num_targets, $num_ant_ele, $pspectrum_len, $distributionFIFO, $reductionFIFO, $writeFIFO, $readFIFO)
-            cannot find 'num_ant_ele'
+        self.doa_autocorrelate_0 = doa.autocorrelate(input_variables.NumArrayElements, input_variables.SnapshotSize, input_variables.OverlapSize, 0)
+        self.doa_MUSIC_lin_array_cnx_0 = doa.MUSIC_lin_array_cnx(input_variables.NormSpacing, input_variables.NumTargets, input_variables.NumArrayElements, input_variables.PSpectrumLength, "distributionFIFO", "reductionFIFO", "writeFIFO", "readFIFO")
         self.blocks_vector_to_streams_0 = blocks.vector_to_streams(gr.sizeof_float*1, input_variables.NumTargets)
         self.blocks_throttle_0_0 = blocks.throttle(gr.sizeof_gr_complex*1, input_variables.SampleRate,True)
         self.blocks_null_sink_0 = blocks.null_sink(gr.sizeof_float*input_variables.NumTargets)
@@ -223,6 +222,10 @@ class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
         self.connect((self.blocks_multiply_matrix_xx_0, 1), (self.doa_autocorrelate_0, 1))
         self.connect((self.blocks_multiply_matrix_xx_0, 2), (self.doa_autocorrelate_0, 2))
         self.connect((self.blocks_multiply_matrix_xx_0, 3), (self.doa_autocorrelate_0, 3))
+        self.connect((self.blocks_multiply_matrix_xx_0, 4), (self.doa_autocorrelate_0, 4))
+        self.connect((self.blocks_multiply_matrix_xx_0, 5), (self.doa_autocorrelate_0, 5))
+        self.connect((self.blocks_multiply_matrix_xx_0, 6), (self.doa_autocorrelate_0, 6))
+        self.connect((self.blocks_multiply_matrix_xx_0, 7), (self.doa_autocorrelate_0, 7))
         self.connect((self.blocks_throttle_0_0, 0), (self.blocks_multiply_matrix_xx_0, 1))
         self.connect((self.blocks_vector_to_streams_0, 0), (self.doa_compass, 0))
         self.connect((self.blocks_vector_to_streams_0, 1), (self.doa_compass_0, 0))
@@ -233,7 +236,7 @@ class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
         self.connect((self.doa_find_local_max_0, 1), (self.blocks_vector_to_streams_0, 0))
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("GNU Radio", "run_MUSIC_lin_array_simulation")
+        self.settings = Qt.QSettings("GNU Radio", "run_MUSIC_lin_array_simulation_mcnx")
         self.settings.setValue("geometry", self.saveGeometry())
         event.accept()
 
@@ -301,7 +304,7 @@ class run_MUSIC_lin_array_simulation(gr.top_block, Qt.QWidget):
         self.blocks_multiply_matrix_xx_0.set_A(self.array_manifold_matrix)
 
 
-def main(top_block_cls=run_MUSIC_lin_array_simulation, options=None):
+def main(top_block_cls=run_MUSIC_lin_array_simulation_mcnx, options=None):
 
     from distutils.version import StrictVersion
     if StrictVersion(Qt.qVersion()) >= StrictVersion("4.5.0"):
