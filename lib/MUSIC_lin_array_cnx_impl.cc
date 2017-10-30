@@ -96,24 +96,6 @@ namespace gr {
           size_red_block,
           nr_red_blocks_last);
 
-//        std::cout << "Parameters: " << std::endl;
-//        std::cout << "===========================================" << std::endl;
-//        std::cout << "nr_chunks: " << nr_chunks << std::endl;
-//        std::cout << "arr_per_chunk: " << arr_per_chunk << std::endl;
-//        std::cout << "LS_per_mat: " << LS_per_mat << std::endl;
-//        std::cout << "LS_per_chunk: " << LS_per_chunk << std::endl;
-//        std::cout << "arr_per_LS: " << arr_per_LS << std::endl;
-//        std::cout << "mat_cols_per_LS: " << mat_cols_per_LS << std::endl;
-//        std::cout << "nr_repeat_arr: " << nr_repeat_arr << std::endl;
-//        std::cout << "nr_repeat_mat: " << nr_repeat_mat << std::endl;
-//
-//        std::cout << "red_per_chunk: " << red_per_chunk << std::endl;
-//        std::cout << "nr_red_blocks: " << nr_red_blocks << std::endl;
-//        std::cout << "nr_red_blocks_last: " << nr_red_blocks_last << std::endl;
-//
-//        std::cout << "size_red_block: " << size_red_block << std::endl;
-//        std::cout << "padding: " << padding << std::endl;
-
         // Create the kernel
         try {
           init_kernel(size_red_block);
@@ -170,7 +152,6 @@ namespace gr {
         // form array response matrix
         cx_fcolvec vii_temp(d_num_ant_ele, fill::zeros);
         d_vii_matrix = cx_fmat(d_num_ant_ele,d_pspectrum_len);
-//        d_vii_matrix_trans = cx_fmat(d_pspectrum_len,d_num_ant_ele);
         for (int ii = 0; ii < d_pspectrum_len; ii++)
         {
           // generate array manifold vector for each theta
@@ -180,7 +161,6 @@ namespace gr {
         }
         // save transposed copy
         d_vii_matrix_conj = conj(d_vii_matrix);
-//        d_vii_matrix_trans = trans(d_vii_matrix);
 
         // Prepare steering vectors for storage on ConnexArray
         prepareInArrConnex(in0_i, d_vii_matrix_conj);
